@@ -1,0 +1,64 @@
+name: Build Desktop (.exe)
+
+# Compila o instalador Windows REAL no runner windows-latest.
+# Dispara ao criar uma tag v* (ex.: v1.0.0) ou manualmente.
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      app_url:
+        description: 'URL de produção da plataforma (UMBANDA_APP_URL)'
+        required: false
+        default: 'https://ead.umbanda.org'
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Instalar dependências do desktop
+        working-directory: desktop
+        run: npm install
+
+      - name: Gerar ícone (caso não versionado)
+        working-directory: desktop/build
+        run: node make-icon.mjs
+
+      - name: Empacotar instalador .exe (NSIS + portátil)
+        working-directory: desktop
+        env:
+          # URL de produção embutida no build (NÃO é segredo; é a mesma do site).
+          UMBANDA_APP_URL: ${{ github.event.inputs.app_url || 'https://ead.umbanda.org' }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npm run dist:win
+
+      - name: Publicar artefatos do build
+        uses: actions/upload-artifact@v4
+        with:
+          name: FormacaoSacerdotalUmbanda-Windows
+          path: |
+            desktop/release/*.exe
+            desktop/release/*.blockmap
+            desktop/release/latest.yml
+
+      - name: Anexar instalador à Release (apenas em tags)
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            desktop/release/FormacaoSacerdotalUmbanda-Setup.exe
+            desktop/release/FormacaoSacerdotalUmbanda-Portatil.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

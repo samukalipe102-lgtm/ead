@@ -1,0 +1,52 @@
+{
+  "name": "formacao-sacerdotal-umbanda-desktop",
+  "productName": "Formação Sacerdotal de Umbanda",
+  "version": "1.0.0",
+  "description": "Aplicativo desktop (Windows) da plataforma EAD de Formação Sacerdotal de Umbanda",
+  "author": "Formação Sacerdotal de Umbanda",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win",
+    "dist:win:portable": "electron-builder --win portable"
+  },
+  "devDependencies": {
+    "electron": "^31.0.0",
+    "electron-builder": "^24.13.3"
+  },
+  "build": {
+    "appId": "org.umbanda.formacaosacerdotal",
+    "productName": "Formação Sacerdotal de Umbanda",
+    "artifactName": "FormacaoSacerdotalUmbanda-Setup.${ext}",
+    "copyright": "© 2026 Formação Sacerdotal de Umbanda",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**/*",
+      "build/**/*"
+    ],
+    "win": {
+      "target": [
+        { "target": "nsis", "arch": ["x64"] },
+        { "target": "portable", "arch": ["x64"] }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Formação Sacerdotal de Umbanda",
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "portable": {
+      "artifactName": "FormacaoSacerdotalUmbanda-Portatil.${ext}"
+    }
+  }
+}

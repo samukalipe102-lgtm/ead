@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Identidade visual: verde floresta, borda dourada, marfim -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="38%" r="75%">
+      <stop offset="0%" stop-color="#1b4332"/>
+      <stop offset="100%" stop-color="#081c15"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bg)"/>
+  <circle cx="256" cy="256" r="196" fill="none" stroke="#d4af37" stroke-width="12"/>
+  <circle cx="256" cy="256" r="172" fill="none" stroke="#c5a028" stroke-width="3" opacity="0.6"/>
+  <!-- Folha estilizada (axé vegetal) -->
+  <path d="M256 150 C 196 190, 176 290, 256 372 C 336 290, 316 190, 256 150 Z"
+        fill="#2d6a4f" stroke="#e2d3b7" stroke-width="6"/>
+  <path d="M256 168 L256 356" stroke="#d4af37" stroke-width="7" stroke-linecap="round"/>
+  <path d="M256 220 L212 250 M256 262 L212 292 M256 220 L300 250 M256 262 L300 292"
+        stroke="#d4af37" stroke-width="5" stroke-linecap="round"/>
+  <!-- Estrela/ponto dourado superior -->
+  <circle cx="256" cy="128" r="12" fill="#d4af37"/>
+</svg>

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Formação Sacerdotal de Umbanda - Portal EAD Institucional</title>
+
+  <!-- React & ReactDOM (produção) -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: { extend: { colors: {
+        forest: { 50:'#f2f8f4',100:'#e1efe5',200:'#c3dfcc',600:'#2d6a4f',700:'#1b4332',800:'#143627',900:'#081c15',950:'#030c09' },
+        ivory: { 50:'#fdfbf7',100:'#f7f3e9',200:'#efe6d5',300:'#e2d3b7' },
+        gold: { 50:'#fdf8e6',100:'#fdf8e6',300:'#e6ca65',400:'#d4af37',500:'#c5a028',600:'#aa820a',700:'#886606',800:'#6b5005' }
+      } } }
+    };
+  </script>
+
+  <!-- jsPDF para certificados e boletins reais -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; background:#fdfbf7; color:#143627; }
+    .custom-scrollbar::-webkit-scrollbar { width:6px; height:6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background:#efe6d5; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background:#2d6a4f; border-radius:3px; }
+    .prose p { margin-bottom:0.85rem; line-height:1.65; }
+  </style>
+</head>
+<body class="bg-ivory-50 text-forest-900 antialiased min-h-screen">
+  <div id="root"></div>
+
+  <!-- Configuração de runtime (descobre a base da API) -->
+  <script src="config.js"></script>
+
+  <!-- Bibliotecas de apoio -->
+  <script src="lib/pdf.js"></script>
+  <script src="lib/api.js"></script>
+
+  <!-- Bundle compilado da aplicação (JSX já transpilado em build) -->
+  <script src="dist/bundle.js"></script>
+</body>
+</html>

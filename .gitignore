@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+
+# Banco de dados e dados sensíveis (PII dos alunos) — NUNCA versionar
+server/data/
+*.db
+*.db-wal
+*.db-shm
+server/uploads/
+
+# Variáveis de ambiente com segredos (SMTP, JWT, chaves de IA)
+.env
+*.env
+!.env.example
+
+# Builds
+# Observação: web/dist/bundle.js É versionado (é o frontend compilado que o
+# servidor serve em produção). Rode `npm run build` em web/ após alterar o JSX.
+desktop/release/
+desktop/dist/
+
+# Logs e temporários
+*.log
+.DS_Store
+/tmp/
+
+# Artefatos do Kiro
+.kiro/artifacts/
+kiro-settings-ignore
+.kiro/
