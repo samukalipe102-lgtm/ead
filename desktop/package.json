@@ -4,12 +4,13 @@
   "version": "1.0.0",
   "description": "Aplicativo desktop (Windows) da plataforma EAD de Formação Sacerdotal de Umbanda",
   "author": "Formação Sacerdotal de Umbanda",
+  "repository": "https://github.com/samukalipe102-lgtm/ead",
   "type": "module",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
-    "dist:win": "electron-builder --win",
-    "dist:win:portable": "electron-builder --win portable"
+    "dist:win": "electron-builder --win --publish never",
+    "dist:win:portable": "electron-builder --win portable --publish never"
   },
   "devDependencies": {
     "electron": "^31.0.0",
