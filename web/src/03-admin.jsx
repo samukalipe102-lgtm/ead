@@ -13,6 +13,7 @@ function AdminView({ user, showToast }) {
         <div className="flex flex-wrap gap-2">
           {tabBtn('ENROLLMENTS', '📋 Inscrições')}
           {tabBtn('MESSAGES', '💬 Mensagens')}
+          {tabBtn('VIDEOAI', '🎬 Vídeos IA')}
           {tabBtn('EMAIL', '✉️ E-mail')}
           {tabBtn('USERS', '👥 Usuários')}
           {tabBtn('AUDIT', '📜 Logs')}
@@ -21,6 +22,7 @@ function AdminView({ user, showToast }) {
 
       {sub === 'ENROLLMENTS' && <EnrollmentsAdmin showToast={showToast} />}
       {sub === 'MESSAGES' && <MessagesTab user={user} showToast={showToast} isAdmin={true} />}
+      {sub === 'VIDEOAI' && <VideoAiAdmin showToast={showToast} />}
       {sub === 'EMAIL' && <EmailAdmin showToast={showToast} />}
       {sub === 'USERS' && <UsersAdmin />}
       {sub === 'AUDIT' && <AuditAdmin />}
@@ -206,6 +208,96 @@ function AuditAdmin() {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// Geração de vídeo por IA (gratuita via Hugging Face). Mostra estado honesto e
+// permite gerar o vídeo de cada aula, com estados reais (processando/concluído/erro).
+function VideoAiAdmin({ showToast }) {
+  const [status, setStatus] = useState(null);
+  const [courses, setCourses] = useState(null);
+  const [busyLesson, setBusyLesson] = useState(null);
+
+  const loadCourses = useCallback(async () => {
+    const d = await Api.myCourses();
+    setCourses(d.courses);
+  }, []);
+
+  useEffect(() => {
+    Api.videoAiStatus().then(setStatus).catch(() => setStatus({ configured: false }));
+    loadCourses();
+  }, []);
+
+  const generate = async (lesson) => {
+    setBusyLesson(lesson.id);
+    try {
+      const r = await Api.generateLessonVideo(lesson.id);
+      showToast('Vídeo gerado e associado à aula "' + lesson.title + '".');
+      await loadCourses();
+    } catch (e) {
+      const reason = e.data && e.data.reason ? e.data.reason : (e.message || '');
+      if (reason === 'MODEL_LOADING') {
+        showToast('O modelo está carregando (cold start). Tente novamente em ~1 minuto.', 'error');
+      } else if (reason === 'VIDEO_AI_NOT_CONFIGURED') {
+        showToast('Geração de vídeo não configurada no servidor (defina HF_TOKEN).', 'error');
+      } else {
+        showToast('Falha real na geração: ' + reason + '. Nenhum vídeo fabricado.', 'error');
+      }
+      await loadCourses();
+    } finally {
+      setBusyLesson(null);
+    }
+  };
+
+  if (!status || !courses) return <Spinner />;
+
+  return (
+    <div className="bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-5">
+      <div className="flex items-center justify-between border-b border-ivory-200 pb-3">
+        <div>
+          <h3 className="font-serif font-bold text-lg text-forest-900">🎬 Geração de Vídeo por IA</h3>
+          <p className="text-xs text-forest-600">Integração gratuita via Hugging Face. A chave fica apenas no servidor.</p>
+        </div>
+        <span className={`text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`}>
+          {status.configured ? 'Vídeo IA ativo' : 'Vídeo IA NÃO configurado'}
+        </span>
+      </div>
+
+      {!status.configured && (
+        <div className="bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed">
+          Para ativar (grátis, sem cartão): crie uma conta em <strong>huggingface.co</strong>, gere um token de acesso
+          com permissão "Inference Providers" e defina <span className="font-mono">HF_TOKEN</span> nas variáveis de
+          ambiente do servidor. Opcional: <span className="font-mono">HF_VIDEO_MODEL</span> e
+          <span className="font-mono"> HF_VIDEO_PROVIDER</span>. Enquanto não configurado, nenhum vídeo é gerado ou fabricado.
+        </div>
+      )}
+
+      <div className="space-y-4">
+        {courses.map((c) => (
+          <div key={c.id} className="border border-ivory-200 rounded-xl p-4 space-y-2">
+            <h4 className="font-serif font-bold text-sm text-forest-900">{c.title}</h4>
+            {c.modules.flatMap((m) => m.lessons).map((l) => (
+              <div key={l.id} className="flex items-center justify-between text-xs py-1.5 border-t border-ivory-100">
+                <span className="text-forest-800 pr-3 truncate">{l.title}</span>
+                <div className="flex items-center gap-2 shrink-0">
+                  <VideoStateBadge status={l.videoStatus} />
+                  {l.aiVideoStatus && (
+                    <span className="text-[10px] px-2 py-0.5 rounded bg-ivory-200 text-forest-700 font-mono">IA: {l.aiVideoStatus}</span>
+                  )}
+                  <button
+                    onClick={() => generate(l)}
+                    disabled={!status.configured || busyLesson === l.id}
+                    className="bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold px-3 py-1.5 rounded-lg text-[11px]"
+                  >
+                    {busyLesson === l.id ? 'Gerando...' : 'Gerar vídeo IA'}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

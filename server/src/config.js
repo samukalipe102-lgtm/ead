@@ -33,6 +33,17 @@ export const config = {
     openaiKey: process.env.OPENAI_API_KEY || '',
   },
 
+  // Geração de vídeo por IA (GRATUITA via Hugging Face Inference Providers).
+  // A conta e o token do Hugging Face são gratuitos (sem cartão), com uma cota
+  // mensal de créditos de inferência. O token fica SOMENTE no servidor.
+  video: {
+    hfToken: process.env.HF_TOKEN || '',
+    // Provider de inferência do HF (ex.: 'fal-ai', 'replicate', 'novita').
+    hfProvider: process.env.HF_VIDEO_PROVIDER || 'fal-ai',
+    // Modelo text-to-video de código aberto (ver docs do HF).
+    model: process.env.HF_VIDEO_MODEL || 'Wan-AI/Wan2.2-TI2V-5B',
+  },
+
   corsOrigin: process.env.CORS_ORIGIN || '*',
   isProd: process.env.NODE_ENV === 'production',
 };
@@ -66,4 +77,8 @@ export function aiConfigured() {
   if (config.ai.provider === 'gemini') return Boolean(config.ai.geminiKey);
   if (config.ai.provider === 'openai') return Boolean(config.ai.openaiKey);
   return false;
+}
+
+export function videoAiConfigured() {
+  return Boolean(config.video.hfToken);
 }

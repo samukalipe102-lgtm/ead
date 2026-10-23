@@ -937,12 +937,14 @@ function AdminView({
     className: "font-serif font-bold text-2xl"
   }, "Gest\xE3o Institucional & Pedag\xF3gica")), /*#__PURE__*/React.createElement("div", {
     className: "flex flex-wrap gap-2"
-  }, tabBtn('ENROLLMENTS', '📋 Inscrições'), tabBtn('MESSAGES', '💬 Mensagens'), tabBtn('EMAIL', '✉️ E-mail'), tabBtn('USERS', '👥 Usuários'), tabBtn('AUDIT', '📜 Logs'))), sub === 'ENROLLMENTS' && /*#__PURE__*/React.createElement(EnrollmentsAdmin, {
+  }, tabBtn('ENROLLMENTS', '📋 Inscrições'), tabBtn('MESSAGES', '💬 Mensagens'), tabBtn('VIDEOAI', '🎬 Vídeos IA'), tabBtn('EMAIL', '✉️ E-mail'), tabBtn('USERS', '👥 Usuários'), tabBtn('AUDIT', '📜 Logs'))), sub === 'ENROLLMENTS' && /*#__PURE__*/React.createElement(EnrollmentsAdmin, {
     showToast: showToast
   }), sub === 'MESSAGES' && /*#__PURE__*/React.createElement(MessagesTab, {
     user: user,
     showToast: showToast,
     isAdmin: true
+  }), sub === 'VIDEOAI' && /*#__PURE__*/React.createElement(VideoAiAdmin, {
+    showToast: showToast
   }), sub === 'EMAIL' && /*#__PURE__*/React.createElement(EmailAdmin, {
     showToast: showToast
   }), sub === 'USERS' && /*#__PURE__*/React.createElement(UsersAdmin, null), sub === 'AUDIT' && /*#__PURE__*/React.createElement(AuditAdmin, null));
@@ -1243,6 +1245,88 @@ function AuditAdmin() {
   }, l.action), /*#__PURE__*/React.createElement("td", {
     className: "p-3"
   }, l.details))))));
+}
+
+// Geração de vídeo por IA (gratuita via Hugging Face). Mostra estado honesto e
+// permite gerar o vídeo de cada aula, com estados reais (processando/concluído/erro).
+function VideoAiAdmin({
+  showToast
+}) {
+  const [status, setStatus] = useState(null);
+  const [courses, setCourses] = useState(null);
+  const [busyLesson, setBusyLesson] = useState(null);
+  const loadCourses = useCallback(async () => {
+    const d = await Api.myCourses();
+    setCourses(d.courses);
+  }, []);
+  useEffect(() => {
+    Api.videoAiStatus().then(setStatus).catch(() => setStatus({
+      configured: false
+    }));
+    loadCourses();
+  }, []);
+  const generate = async lesson => {
+    setBusyLesson(lesson.id);
+    try {
+      const r = await Api.generateLessonVideo(lesson.id);
+      showToast('Vídeo gerado e associado à aula "' + lesson.title + '".');
+      await loadCourses();
+    } catch (e) {
+      const reason = e.data && e.data.reason ? e.data.reason : e.message || '';
+      if (reason === 'MODEL_LOADING') {
+        showToast('O modelo está carregando (cold start). Tente novamente em ~1 minuto.', 'error');
+      } else if (reason === 'VIDEO_AI_NOT_CONFIGURED') {
+        showToast('Geração de vídeo não configurada no servidor (defina HF_TOKEN).', 'error');
+      } else {
+        showToast('Falha real na geração: ' + reason + '. Nenhum vídeo fabricado.', 'error');
+      }
+      await loadCourses();
+    } finally {
+      setBusyLesson(null);
+    }
+  };
+  if (!status || !courses) return /*#__PURE__*/React.createElement(Spinner, null);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-5"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between border-b border-ivory-200 pb-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "font-serif font-bold text-lg text-forest-900"
+  }, "\uD83C\uDFAC Gera\xE7\xE3o de V\xEDdeo por IA"), /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-forest-600"
+  }, "Integra\xE7\xE3o gratuita via Hugging Face. A chave fica apenas no servidor.")), /*#__PURE__*/React.createElement("span", {
+    className: `text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`
+  }, status.configured ? 'Vídeo IA ativo' : 'Vídeo IA NÃO configurado')), !status.configured && /*#__PURE__*/React.createElement("div", {
+    className: "bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed"
+  }, "Para ativar (gr\xE1tis, sem cart\xE3o): crie uma conta em ", /*#__PURE__*/React.createElement("strong", null, "huggingface.co"), ", gere um token de acesso com permiss\xE3o \"Inference Providers\" e defina ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "HF_TOKEN"), " nas vari\xE1veis de ambiente do servidor. Opcional: ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "HF_VIDEO_MODEL"), " e", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, " HF_VIDEO_PROVIDER"), ". Enquanto n\xE3o configurado, nenhum v\xEDdeo \xE9 gerado ou fabricado."), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, courses.map(c => /*#__PURE__*/React.createElement("div", {
+    key: c.id,
+    className: "border border-ivory-200 rounded-xl p-4 space-y-2"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-serif font-bold text-sm text-forest-900"
+  }, c.title), c.modules.flatMap(m => m.lessons).map(l => /*#__PURE__*/React.createElement("div", {
+    key: l.id,
+    className: "flex items-center justify-between text-xs py-1.5 border-t border-ivory-100"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "text-forest-800 pr-3 truncate"
+  }, l.title), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 shrink-0"
+  }, /*#__PURE__*/React.createElement(VideoStateBadge, {
+    status: l.videoStatus
+  }), l.aiVideoStatus && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] px-2 py-0.5 rounded bg-ivory-200 text-forest-700 font-mono"
+  }, "IA: ", l.aiVideoStatus), /*#__PURE__*/React.createElement("button", {
+    onClick: () => generate(l),
+    disabled: !status.configured || busyLesson === l.id,
+    className: "bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold px-3 py-1.5 rounded-lg text-[11px]"
+  }, busyLesson === l.id ? 'Gerando...' : 'Gerar vídeo IA'))))))));
 }
 const {
   useState,

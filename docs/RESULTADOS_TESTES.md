@@ -18,11 +18,12 @@ Comando: `cd server && node --test` — sobe a API real em memória, banco tempo
 | 8 | Mensagens: área real, persistente e **isolada por usuário** (Carlos não vê thread da Maria → 403) | **PASS** |
 | 9 | Tutor de IA **separado** das mensagens; sem chave → 503 "não configurado" | **PASS** |
 | 10 | E-mail de teste sem SMTP → 502 com `SMTP_NOT_CONFIGURED` (**não finge sucesso**) | **PASS** |
-| 11 | Inscrição: solicitar → aprovar cria usuário e concede acesso real | **PASS** |
-| 12 | Certificado só emite após concluir todas as aulas; verificação pública funciona | **PASS** |
-| 13 | Progresso: percentual reflete aulas concluídas | **PASS** |
+| 11 | Vídeo IA: status honesto; sem HF_TOKEN → 503 "não configurado"; aluno → 403 | **PASS** |
+| 12 | Inscrição: solicitar → aprovar cria usuário e concede acesso real | **PASS** |
+| 13 | Certificado só emite após concluir todas as aulas; verificação pública funciona | **PASS** |
+| 14 | Progresso: percentual reflete aulas concluídas | **PASS** |
 
-**Total: 13/13 aprovados, 0 falhas.**
+**Total: 14/14 aprovados, 0 falhas.**
 
 ## ✅ Verificações de serving (backend + site web juntos)
 
@@ -68,8 +69,11 @@ Sou explícito sobre o que **não** foi possível validar aqui, conforme solicit
    executa binários Windows. O empacotamento é feito pela CI em `windows-latest`
    (`.github/workflows/desktop-build.yml`). **Como validar:** push + tag `v1.0.0` → baixar
    o instalador da Release e instalar no Windows (ver `docs/OPERACAO.md`).
-5. **Geração de vídeo por IA** — **não implementada** (requer provedor real + assinatura).
-   Nada foi fabricado. Campos reservados no schema para implementação futura honesta.
+5. **Geração de vídeo por IA (gratuita via Hugging Face)** — **implementada**. O caminho
+   "não configurado" (sem `HF_TOKEN`) é testado automaticamente (teste 11). O envio real
+   ao Hugging Face **não** pôde rodar no sandbox (sem egress de rede ao provedor). **Como
+   validar:** defina `HF_TOKEN` (grátis) e clique em "Gerar vídeo IA" na aba "Vídeos IA"
+   do painel admin. Ver `docs/OPERACAO.md §7`.
 
 ## Observação sobre persistência e preservação
 

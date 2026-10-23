@@ -46,6 +46,7 @@ test('health reporta estado honesto das integrações', async () => {
   assert.equal(r.json.integrations.database, true);
   assert.equal(r.json.integrations.smtp, false);   // sem SMTP no teste
   assert.equal(r.json.integrations.aiTutor, false); // sem IA no teste
+  assert.equal(r.json.integrations.aiVideo, false); // sem HF_TOKEN no teste
 });
 
 test('login admin e student funcionam; senha errada é rejeitada', async () => {
@@ -137,6 +138,19 @@ test('E-MAIL: teste sem SMTP reporta falha honesta (502), não finge sucesso', a
   assert.equal(r.status, 502);
   assert.equal(r.json.ok, false);
   assert.equal(r.json.reason, 'SMTP_NOT_CONFIGURED');
+});
+
+test('VÍDEO IA: status honesto; sem HF_TOKEN a geração reporta não configurado (503)', async () => {
+  const status = await api('GET', '/admin/video-ai/status', { token: adminToken });
+  assert.equal(status.status, 200);
+  assert.equal(status.json.configured, false); // sem HF_TOKEN no ambiente de teste
+  // Solicitar geração para uma aula existente sem chave -> 503, sem fabricar vídeo
+  const gen = await api('POST', '/admin/video-ai/lessons/c1_m1_l1/generate', { token: adminToken });
+  assert.equal(gen.status, 503);
+  assert.equal(gen.json.reason, 'VIDEO_AI_NOT_CONFIGURED');
+  // E a rota exige admin: aluno recebe 403
+  const asStudent = await api('POST', '/admin/video-ai/lessons/c1_m1_l1/generate', { token: studentToken });
+  assert.equal(asStudent.status, 403);
 });
 
 test('INSCRIÇÃO: fluxo solicitar -> aprovar concede acesso real', async () => {
