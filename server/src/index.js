@@ -22,8 +22,9 @@ import miscRoutes from './routes/misc.routes.js';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // --- Persistência gratuita (opcional): restaura do backup ANTES de abrir o banco ---
-// Em hospedagem de disco efêmero, recupera banco + vídeos do repo de backup.
-restoreIfNeeded();
+// Em hospedagem de disco efêmero, recupera banco + vídeos do repo PRIVADO de backup.
+// (await: a restauração precisa terminar antes de abrir o SQLite.)
+await restoreIfNeeded();
 
 // --- Inicialização do banco ---
 const dbPath = resolveDbPath();
