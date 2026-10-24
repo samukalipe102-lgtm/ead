@@ -57,11 +57,15 @@ eles eram consequência direta da ausência de uma arquitetura real. A solução
 9. **App desktop Electron** (`desktop/`) apontando para o backend de produção, com tela de
    offline, ícone profissional e empacotamento `.exe` (NSIS + portátil) via GitHub Actions.
 
+10. **Geração de vídeo por IA (gratuita)** (`server/src/video.js`, `/api/admin/video-ai`):
+    integração real via **Hugging Face Inference Providers** (gratuito, sem cartão).
+    Estados reais na aula (`PROCESSING → DONE | FAILED`), vídeo salvo e associado.
+    Sem `HF_TOKEN`, reporta "não configurado" (nada fabricado). Ver `docs/OPERACAO.md §7`.
+
 ## Pendências que dependem de você (fora do executável)
 
-Ver `docs/OPERACAO.md` seção "Serviços e credenciais". Em resumo:
+Ver `docs/OPERACAO.md`. Em resumo:
 - **Hospedagem do backend** (URL pública HTTPS) — necessária para o modo EAD.
 - **Credenciais SMTP** — para e-mail real.
 - **Chave de IA (Gemini ou OpenAI)** — opcional, para o tutor de IA.
-- **Geração de vídeo por IA**: não foi implementada uma integração "fantasma". É preciso
-  escolher um provedor real e compatível (e assinatura/chave) antes de ativar. Ver OPERACAO.
+- **Token Hugging Face (`HF_TOKEN`)** — opcional e **gratuito**, para a geração de vídeo por IA.

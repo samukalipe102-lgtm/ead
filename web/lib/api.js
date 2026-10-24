@@ -78,5 +78,7 @@ window.Api = (function () {
     emailLogs: () => request('GET', '/admin/email-logs'),
     emailVerify: () => request('GET', '/admin/email-verify'),
     emailTest: (to) => request('POST', '/admin/email-test', { to }),
+    videoAiStatus: () => request('GET', '/admin/video-ai/status'),
+    generateLessonVideo: (lessonId, prompt) => request('POST', '/admin/video-ai/lessons/' + lessonId + '/generate', { prompt }),
   };
 })();

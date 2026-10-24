@@ -92,12 +92,51 @@ tutor de IA separado, falha honesta de e-mail sem SMTP, fluxo de inscrição/apr
 emissão de certificado condicionada à conclusão, verificação pública e progresso.
 Ver resultados em `docs/RESULTADOS_TESTES.md`.
 
-## 7. Geração de vídeo por IA — status honesto
+## 7. Geração de vídeo por IA — GRATUITA via Hugging Face
 
-Não foi implementada uma integração "fantasma" de geração de vídeo. O schema já
-reserva os campos (`ai_video_status`, `ai_video_url`) para quando um provedor real
-e compatível for escolhido. Para ativar, é preciso: (a) escolher um provedor com
-API documentada e assinatura válida; (b) implementar o adaptador no servidor
-mantendo a chave **apenas** no servidor; (c) expor estados reais (solicitado,
-processando, concluído, erro). Enquanto isso não existir, a plataforma **não**
-exibe vídeos de IA nem progressos fabricados.
+A geração de vídeo por IA foi implementada de forma **real e gratuita** usando os
+**Hugging Face Inference Providers** (modelos text-to-video de código aberto).
+A conta e o token do Hugging Face são **gratuitos e sem cartão de crédito**, com
+uma cota mensal de créditos de inferência.
+
+### Por que Hugging Face (e não Veo/Runway/Kling/Sora)
+Pesquisa de mercado (out/2026): os fabricantes dos grandes modelos de vídeo
+(Google Veo, Runway, Kling, Pika, Luma, xAI, MiniMax) **não oferecem free tier de
+API** — seus "grátis" são via interface web, não por API programática. O caminho
+gratuito e documentado para **API** é o roteador de Inference Providers do Hugging
+Face com modelos abertos (ex.: `Wan-AI/Wan2.2-TI2V-5B`, LTX-Video, HunyuanVideo).
+
+### Vários provedores — configure UM; o servidor detecta sozinho
+A seleção é automática pela chave presente (ou force com `VIDEO_AI_PROVIDER`):
+
+**(A) Hugging Face — grátis, sem cartão (recomendado):**
+1. Conta em **huggingface.co** → *Settings → Access Tokens* → token com permissão
+   **"Inference Providers"**.
+2. No servidor: `HF_TOKEN=hf_...` (opcionais: `HF_VIDEO_MODEL`, `HF_VIDEO_PROVIDER`).
+
+**(B) Replicate — créditos free/trial:**
+- `REPLICATE_API_TOKEN=r8_...` (opcional: `REPLICATE_VIDEO_MODEL`, default `wan-video/wan-2.2-t2v-fast`).
+
+**(C) Endpoint próprio/outro provedor:**
+- `VIDEO_AI_URL=...` + `VIDEO_AI_KEY=...` (+ `VIDEO_AI_MODEL`). Aceita resposta em
+  bytes de vídeo ou JSON com `url`.
+
+Depois, reinicie o backend e use o painel admin → aba **"🎬 Vídeos IA"** →
+*"Gerar vídeo IA"* na aula. O painel mostra qual provedor está ativo.
+
+### Comportamento honesto
+- A chave fica **apenas no servidor** (nunca no frontend/executável).
+- Estados reais na aula: `PROCESSING` → `DONE` (com o arquivo salvo e associado) ou
+  `FAILED`. Cold start do modelo retorna `MODEL_LOADING` (tente de novo em ~1 min).
+- Sem `HF_TOKEN`, a geração reporta **"não configurado"** — **nenhum vídeo, link ou
+  progresso é fabricado**.
+- O vídeo gerado é salvo em `server/data/uploads/ai-videos/` e servido em
+  `/uploads/ai-videos/<arquivo>.mp4`. (Em produção, aponte os uploads para um volume
+  persistente ou storage externo via `UPLOADS_DIR`.)
+- **Conteúdo religioso:** o vídeo gerado é ilustrativo/didático a partir do título da
+  aula. A IA não cria fundamento religioso, fonte ou certificado.
+
+> Observação de teste: o envio ao Hugging Face não pôde ser executado no sandbox do
+> Kiro (sem egress de rede ao provedor). O caminho "não configurado" está coberto por
+> teste automatizado. Para validar a geração real, configure `HF_TOKEN` e use o botão
+> no painel admin.

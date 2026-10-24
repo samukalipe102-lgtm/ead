@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 import { existsSync } from 'node:fs';
 
-import { config, resolveDbPath, effectiveJwtSecret, smtpConfigured, aiConfigured } from './config.js';
+import { config, resolveDbPath, resolveUploadsDir, effectiveJwtSecret, smtpConfigured, aiConfigured, videoAiConfigured } from './config.js';
 import { initDb } from './db/index.js';
 import { seed } from './db/seed.js';
 
@@ -42,9 +42,13 @@ app.get('/api/health', (req, res) => {
       database: existsSync(dbPath),
       smtp: smtpConfigured(),
       aiTutor: aiConfigured(),
+      aiVideo: videoAiConfigured(),
     },
   });
 });
+
+// Servir os vídeos gerados por IA (e outros uploads) de forma pública.
+app.use('/uploads', express.static(resolveUploadsDir()));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/courses', coursesRoutes);
@@ -76,6 +80,7 @@ export function start() {
     console.log(`   Banco:       ${dbPath}`);
     console.log(`   SMTP:        ${smtpConfigured() ? 'configurado' : 'NÃO configurado (e-mails reportarão indisponível)'}`);
     console.log(`   Tutor de IA: ${aiConfigured() ? 'configurado (' + config.ai.provider + ')' : 'NÃO configurado (recurso indisponível)'}`);
+    console.log(`   Vídeo IA:    ${videoAiConfigured() ? 'configurado (Hugging Face, ' + config.video.model + ')' : 'NÃO configurado (geração de vídeo indisponível)'}`);
   });
 }
 

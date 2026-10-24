@@ -38,5 +38,6 @@ A plataforma é acessível de duas formas, **compartilhando o mesmo backend e ba
 | "E-mail enviado" sempre `SUCCESS` (falso)   | Envio real por SMTP; sem credencial → reporta indisponível|
 | Mensagens misturadas com "tutor"            | Área de mensagens própria + Tutor IA em área separada     |
 | Vídeos de amostra / `null`                  | Estados reais: disponível / processando / indisponível    |
+| Geração de vídeo por IA inexistente         | Integração real e **gratuita** via Hugging Face (opcional) |
 
 Consulte **`docs/DIAGNOSTICO.md`** para o diagnóstico completo do protótipo e **`docs/OPERACAO.md`** para instalação, variáveis de ambiente e testes.

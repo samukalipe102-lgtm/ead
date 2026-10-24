@@ -9,12 +9,20 @@ on:
   workflow_dispatch:
     inputs:
       app_url:
-        description: 'URL de produção da plataforma (UMBANDA_APP_URL)'
+        description: 'URL de produção da plataforma (sobrescreve DEFAULT_APP_URL)'
         required: false
-        default: 'https://ead.umbanda.org'
+        default: ''
 
 permissions:
   contents: write
+
+# >>> AJUSTE AQUI <<<
+# Quando você hospedar o backend, troque este valor pela URL real de produção
+# (ex.: https://ead.suaorg.org). É a mesma URL usada pelo site; NÃO é segredo.
+# Alternativamente, você pode definir um "Repository variable" chamado APP_URL
+# em Settings > Secrets and variables > Actions > Variables.
+env:
+  DEFAULT_APP_URL: 'https://ead.umbanda.org'
 
 jobs:
   build-windows:
@@ -39,8 +47,9 @@ jobs:
       - name: Empacotar instalador .exe (NSIS + portátil)
         working-directory: desktop
         env:
-          # URL de produção embutida no build (NÃO é segredo; é a mesma do site).
-          UMBANDA_APP_URL: ${{ github.event.inputs.app_url || 'https://ead.umbanda.org' }}
+          # Precedência: input manual > variável de repositório APP_URL > DEFAULT_APP_URL.
+          # NÃO é segredo; é a mesma URL pública do site.
+          UMBANDA_APP_URL: ${{ github.event.inputs.app_url != '' && github.event.inputs.app_url || vars.APP_URL || env.DEFAULT_APP_URL }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npm run dist:win
 

@@ -3,10 +3,56 @@ import { all, get, run } from '../db/index.js';
 import { requireAuth, requireAdmin } from '../auth.js';
 import { audit } from '../util.js';
 import { sendEmail, verifySmtp } from '../mailer.js';
-import { smtpConfigured } from '../config.js';
+import { smtpConfigured, videoAiConfigured } from '../config.js';
+import { generateVideo, videoAiStatus } from '../video.js';
 
 const router = Router();
 router.use(requireAuth, requireAdmin);
+
+// ---- Geração de vídeo por IA (gratuita via Hugging Face) ----
+
+// Status honesto da integração de vídeo.
+router.get('/video-ai/status', (req, res) => {
+  res.json(videoAiStatus());
+});
+
+// Solicita a geração de vídeo para uma aula. Estados reais na própria aula:
+// PROCESSING durante a geração; DONE + video_url/video_status=AVAILABLE no sucesso;
+// FAILED em erro. Nunca marca sucesso sem ter o arquivo de vídeo real.
+router.post('/video-ai/lessons/:lessonId/generate', async (req, res) => {
+  const lesson = get('SELECT * FROM lessons WHERE id = ?', [req.params.lessonId]);
+  if (!lesson) return res.status(404).json({ error: 'Aula não encontrada.' });
+  if (!videoAiConfigured()) {
+    return res.status(503).json({
+      ok: false,
+      reason: 'VIDEO_AI_NOT_CONFIGURED',
+      message: 'Geração de vídeo por IA não configurada. Defina HF_TOKEN (Hugging Face, gratuito) no servidor.',
+    });
+  }
+
+  // Monta o prompt a partir do conteúdo real da aula (sem inventar conteúdo).
+  const prompt = (req.body && req.body.prompt && req.body.prompt.trim())
+    || `Vídeo educativo ilustrativo e sóbrio sobre: ${lesson.title}. Estilo respeitoso e didático.`;
+
+  run('UPDATE lessons SET ai_video_status = ? WHERE id = ?', ['PROCESSING', lesson.id]);
+  audit(req.user.email, 'VIDEO_IA_SOLICITADO', `Geração de vídeo IA para a aula ${lesson.id}`);
+
+  const result = await generateVideo(prompt);
+
+  if (!result.ok) {
+    const status = result.reason === 'MODEL_LOADING' ? 'PROCESSING' : 'FAILED';
+    run('UPDATE lessons SET ai_video_status = ? WHERE id = ?', [status, lesson.id]);
+    audit(req.user.email, 'VIDEO_IA_FALHA', `Falha (${result.reason}) na aula ${lesson.id}`);
+    const code = result.reason === 'MODEL_LOADING' ? 202 : 502;
+    return res.status(code).json({ ok: false, reason: result.reason, error: result.error, status });
+  }
+
+  // Sucesso REAL: arquivo salvo. Associa à aula e marca o vídeo como disponível.
+  run('UPDATE lessons SET ai_video_status = ?, ai_video_url = ?, video_url = ?, video_status = ? WHERE id = ?',
+    ['DONE', result.publicPath, result.publicPath, 'AVAILABLE', lesson.id]);
+  audit(req.user.email, 'VIDEO_IA_CONCLUIDO', `Vídeo IA (${result.bytes} bytes) associado à aula ${lesson.id}`);
+  res.json({ ok: true, videoUrl: result.publicPath, aiVideoStatus: 'DONE' });
+});
 
 // ---- Configuração de e-mail ----
 router.get('/email-settings', (req, res) => {
