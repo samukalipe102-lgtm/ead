@@ -8,6 +8,7 @@ import { config, resolveDbPath, resolveUploadsDir, effectiveJwtSecret, smtpConfi
 import { initDb } from './db/index.js';
 import { seed } from './db/seed.js';
 import { startVideoWorker } from './video-worker.js';
+import { videoAiStatus } from './video.js';
 
 import authRoutes from './routes/auth.routes.js';
 import coursesRoutes from './routes/courses.routes.js';
@@ -84,7 +85,8 @@ export function start() {
     console.log(`   Banco:       ${dbPath}`);
     console.log(`   SMTP:        ${smtpConfigured() ? 'configurado' : 'NÃO configurado (e-mails reportarão indisponível)'}`);
     console.log(`   Tutor de IA: ${aiConfigured() ? 'configurado (' + config.ai.provider + ')' : 'NÃO configurado (recurso indisponível)'}`);
-    console.log(`   Vídeo IA:    ${videoAiConfigured() ? 'configurado (Hugging Face, ' + config.video.model + ')' : 'NÃO configurado (geração de vídeo indisponível)'}`);
+    const vst = videoAiStatus();
+    console.log(`   Vídeo IA:    ${vst.configured ? 'motor ' + vst.provider + (vst.ttsBackend ? ' · narração ' + vst.ttsBackend : '') : 'NÃO configurado (geração indisponível)'}`);
   });
 }
 
