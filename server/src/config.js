@@ -4,8 +4,19 @@ import { dirname, join, isAbsolute } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
+import { createRequire } from 'node:module';
+
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
+const req = createRequire(import.meta.url);
+
+// Resolve o binário estático do ffmpeg (ffmpeg-static exporta o caminho).
+function resolveStatic() {
+  try { return req('ffmpeg-static'); } catch { return null; }
+}
+function resolveStaticProbe() {
+  try { return req('ffprobe-static').path; } catch { return null; }
+}
 
 export const config = {
   port: Number(process.env.PORT || 4000),
@@ -57,8 +68,11 @@ export const config = {
     customKey: process.env.VIDEO_AI_KEY || '',
     customModel: process.env.VIDEO_AI_MODEL || '',
 
-    // Caminho do ffmpeg (usado pelo motor "assembled" — produção automatizada).
-    ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
+    // Caminhos do ffmpeg/ffprobe. Se não definidos, resolvemos os binários
+    // estáticos empacotados (ffmpeg-static/ffprobe-static) — funcionam sem
+    // instalação no SO, inclusive em contêineres mínimos.
+    ffmpegPath: process.env.FFMPEG_PATH || resolveStatic() || 'ffmpeg',
+    ffprobePath: process.env.FFPROBE_PATH || resolveStaticProbe() || 'ffprobe',
   },
 
   corsOrigin: process.env.CORS_ORIGIN || '*',

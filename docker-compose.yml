@@ -1,0 +1,39 @@
+# Deploy do backend EAD Umbanda com armazenamento PERSISTENTE.
+# Sobe o site + API + worker de geração de vídeo (motor gratuito "assembled").
+#
+# Uso:
+#   1) copie server/.env.example para .env e defina ao menos JWT_SECRET
+#   2) docker compose up -d --build
+#   3) acesse http://SEU_HOST:4000
+#
+# O volume "umbanda-data" preserva o banco e os vídeos gerados após reinícios.
+services:
+  umbanda:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    image: umbanda-ead:latest
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - DB_PATH=/data/umbanda.db
+      - UPLOADS_DIR=/data/uploads
+      - JWT_SECRET=${JWT_SECRET}
+      # Motor de vídeo gratuito já funciona (ffmpeg-static + meSpeak embutidos).
+      # Opcionais para melhorar/estender:
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - HF_TOKEN=${HF_TOKEN:-}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM=${SMTP_FROM:-}
+      - CORS_ORIGIN=${CORS_ORIGIN:-*}
+    volumes:
+      - umbanda-data:/data
+
+volumes:
+  umbanda-data:

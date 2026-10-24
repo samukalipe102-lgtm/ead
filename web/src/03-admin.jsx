@@ -320,6 +320,13 @@ function VideoAiAdmin({ showToast }) {
             <p>Sem nenhum, nada é gerado ou fabricado.</p>
           </div>
         )}
+        {status.configured && (
+          <div className="text-[11px] text-forest-600">
+            Motor: <strong>{status.provider}</strong>
+            {status.ttsBackend ? ' · narração: ' + status.ttsBackend : ''}
+            {status.ffmpegAvailable ? ' · ffmpeg ✓' : ''}
+          </div>
+        )}
 
         {/* Formulário de criação */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">

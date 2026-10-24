@@ -46,7 +46,7 @@ test('health reporta estado honesto das integrações', async () => {
   assert.equal(r.json.integrations.database, true);
   assert.equal(r.json.integrations.smtp, false);   // sem SMTP no teste
   assert.equal(r.json.integrations.aiTutor, false); // sem IA no teste
-  assert.equal(r.json.integrations.aiVideo, false); // sem HF_TOKEN no teste
+  assert.equal(r.json.integrations.aiVideo, true);  // motor "assembled" disponível (ffmpeg-static + meSpeak)
 });
 
 test('login admin e student funcionam; senha errada é rejeitada', async () => {
@@ -140,84 +140,81 @@ test('E-MAIL: teste sem SMTP reporta falha honesta (502), não finge sucesso', a
   assert.equal(r.json.reason, 'SMTP_NOT_CONFIGURED');
 });
 
-test('VÍDEO IA: status honesto e geração de roteiro a partir do conteúdo real', async () => {
+test('VÍDEO IA: status honesto (motor assembled disponível) e roteiro do conteúdo real', async () => {
   const status = await api('GET', '/admin/video-ai/status', { token: adminToken });
   assert.equal(status.status, 200);
-  // Sem chave e sem ffmpeg no sandbox, nenhum motor está disponível.
-  assert.equal(status.json.configured, false);
-
-  // Geração de roteiro funciona mesmo sem IA (deriva do conteúdo da aula).
-  const script = await api('POST', '/admin/video-ai/script', { token: adminToken, body: { lessonId: 'c1_m1_l1' } });
-  assert.equal(script.status, 200);
-  assert.ok(script.json.script && script.json.script.length > 10);
-  assert.ok(['ai', 'template'].includes(script.json.source));
-});
-
-test('VÍDEO IA: criar job sem motor disponível reporta 503 (não fabrica vídeo); aluno não acessa', async () => {
-  const create = await api('POST', '/admin/video-ai/jobs', {
-    token: adminToken, body: { lessonId: 'c1_m1_l1', script: 'Roteiro de teste.\n\nSegundo parágrafo.' },
-  });
-  assert.equal(create.status, 503);
-  assert.equal(create.json.reason, 'VIDEO_AI_NOT_CONFIGURED');
+  // Com ffmpeg-static + meSpeak, o motor "assembled" está disponível.
+  assert.equal(status.json.configured, true);
+  assert.equal(status.json.provider, 'assembled');
+  assert.equal(status.json.ffmpegAvailable, true);
+  assert.ok(status.json.ttsBackend, 'deve reportar um backend de TTS');
 
   // Rotas do gerador exigem admin.
   const asStudent = await api('GET', '/admin/video-ai/jobs', { token: studentToken });
   assert.equal(asStudent.status, 403);
+
+  // Geração de roteiro deriva do conteúdo real da aula.
+  const script = await api('POST', '/admin/video-ai/script', { token: adminToken, body: { lessonId: 'c1_m1_l1' } });
+  assert.equal(script.status, 200);
+  assert.ok(script.json.script && script.json.script.length > 10);
 });
 
-test('VÍDEO IA: fluxo assíncrono completo com motor "custom" simulado por servidor local', async () => {
-  // Sobe um "provedor" HTTP local que devolve bytes de um MP4 mínimo, e configura
-  // o motor custom apontando para ele — exercita fila -> worker -> COMPLETED -> publish.
-  const http = await import('node:http');
-  // MP4 mínimo válido o suficiente (>1KB) para passar na checagem de tamanho.
-  const fakeMp4 = Buffer.concat([Buffer.from('\x00\x00\x00\x18ftypmp42', 'binary'), Buffer.alloc(2048, 1)]);
-  const provider = http.createServer((q, s) => { s.writeHead(200, { 'Content-Type': 'video/mp4' }); s.end(fakeMp4); });
-  await new Promise((r) => provider.listen(0, r));
-  const purl = `http://127.0.0.1:${provider.address().port}/gen`;
-
-  // Reconfigura o motor custom em runtime (config é objeto mutável).
-  const { config } = await import('../src/config.js');
-  config.video.customUrl = purl;
-  config.video.provider = 'custom';
-
-  // Cria o job -> deve enfileirar (QUEUED).
+test('VÍDEO IA: geração REAL de ponta a ponta (assembled) — MP4 H.264/AAC com áudio e legendas', async () => {
+  // Cria o job com motor assembled — gera vídeo REAL (ffmpeg + meSpeak), sem mock.
   const create = await api('POST', '/admin/video-ai/jobs', {
-    token: adminToken, body: { lessonId: 'c2_m1_l1', title: 'Aula de teste', script: 'Introdução.\n\nDesenvolvimento.', engine: 'custom' },
+    token: adminToken,
+    body: {
+      lessonId: 'c2_m1_l1', title: 'Aula de teste (automatizada)',
+      script: 'Introducao a aula.\n\nAs ervas sao veiculos de vibracao da natureza.',
+      engine: 'assembled',
+    },
   });
   assert.equal(create.status, 201);
   const jobId = create.json.jobId;
   assert.equal(create.json.status, 'QUEUED');
 
-  // Aguarda o worker concluir (poll do estado real).
+  // Aguarda o worker concluir (geração real leva alguns segundos).
   let job;
-  for (let i = 0; i < 40; i++) {
+  for (let i = 0; i < 120; i++) {
     const d = await api('GET', `/admin/video-ai/jobs/${jobId}`, { token: adminToken });
     job = d.json.job;
     if (job.status === 'COMPLETED' || job.status === 'FAILED') break;
-    await new Promise((r) => setTimeout(r, 300));
+    await new Promise((r) => setTimeout(r, 500));
   }
   assert.equal(job.status, 'COMPLETED', 'job deveria concluir; erro: ' + (job && job.error));
   assert.ok(job.result_url && job.result_url.startsWith('/uploads/ai-videos/'));
 
-  // O vídeo NÃO foi publicado automaticamente (etapa separada).
-  const lessonBefore = await api('GET', '/courses/c2', { token: adminToken });
-  const lb = lessonBefore.json.course.modules[0].lessons[0];
-  assert.notEqual(lb.videoUrl, job.result_url);
+  // NÃO publica automaticamente (etapa separada).
+  const before = await api('GET', '/courses/c2', { token: adminToken });
+  assert.notEqual(before.json.course.modules[0].lessons[0].videoUrl, job.result_url);
 
-  // O arquivo é servido publicamente.
+  // O arquivo é servido publicamente e é um MP4 real (começa com ftyp).
   const vid = await fetch(base.replace('/api', '') + job.result_url);
   assert.equal(vid.status, 200);
+  const buf = Buffer.from(await vid.arrayBuffer());
+  assert.ok(buf.length > 50000, 'MP4 real deve ter tamanho significativo, teve ' + buf.length);
+  assert.equal(buf.slice(4, 8).toString(), 'ftyp');
 
-  // Publicar -> associa à aula.
+  // Validação técnica via ffprobe (duração, codecs, áudio presente).
+  const { probeVideo } = await import('../src/video.js');
+  const { resolveUploadsDir } = await import('../src/config.js');
+  const { join } = await import('node:path');
+  const filePath = join(resolveUploadsDir(), 'ai-videos', job.result_url.split('/').pop());
+  const meta = probeVideo(filePath);
+  assert.ok(meta.duration > 2, 'duração real > 2s, foi ' + meta.duration);
+  assert.equal(meta.width, 1280);
+  assert.equal(meta.height, 720);
+  assert.equal(meta.videoCodec, 'h264');
+  assert.equal(meta.audioCodec, 'aac');
+  assert.equal(meta.hasAudio, true);
+
+  // Publicar -> associa à aula (persistente).
   const pub = await api('POST', `/admin/video-ai/jobs/${jobId}/publish`, { token: adminToken });
   assert.equal(pub.status, 200);
-  const lessonAfter = await api('GET', '/courses/c2', { token: adminToken });
-  const la = lessonAfter.json.course.modules[0].lessons[0];
+  const after = await api('GET', '/courses/c2', { token: adminToken });
+  const la = after.json.course.modules[0].lessons[0];
   assert.equal(la.videoUrl, job.result_url);
   assert.equal(la.videoStatus, 'AVAILABLE');
-
-  config.video.customUrl = ''; config.video.provider = '';
-  provider.close();
 });
 
 test('INSCRIÇÃO: fluxo solicitar -> aprovar concede acesso real', async () => {
