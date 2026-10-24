@@ -41,3 +41,5 @@ A plataforma é acessível de duas formas, **compartilhando o mesmo backend e ba
 | Geração de vídeo por IA inexistente         | Integração real e **gratuita** via Hugging Face (opcional) |
 
 Consulte **`docs/DIAGNOSTICO.md`** para o diagnóstico completo do protótipo e **`docs/OPERACAO.md`** para instalação, variáveis de ambiente e testes.
+
+Para colocar online: **`docs/DEPLOY-GRATIS.md`** (100% grátis, sem cartão — Modo A: seu PC; Modo B: Back4app + backup em Git) ou **`docs/DEPLOY.md`** (opções pagas ~US$2–5/mês com URL permanente).
