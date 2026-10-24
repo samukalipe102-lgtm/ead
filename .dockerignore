@@ -1,0 +1,12 @@
+**/node_modules
+server/data
+**/*.db
+**/*.db-wal
+**/*.db-shm
+server/uploads
+.git
+.github
+desktop/release
+desktop/node_modules
+**/.env
+.kiro

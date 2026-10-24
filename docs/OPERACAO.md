@@ -129,11 +129,25 @@ Seleção automática (ou force com `VIDEO_AI_PROVIDER`):
 **(C) Endpoint próprio/outro provedor:**
 - `VIDEO_AI_URL=...` + `VIDEO_AI_KEY=...` (+ `VIDEO_AI_MODEL`). Resposta: bytes de vídeo ou JSON `{ url }`.
 
-**(D) Produção automatizada ("assembled") — grátis, sem provedor de vídeo:**
-- Gera um **MP4 real** a partir de roteiro → narração (TTS) → slides → montagem com **ffmpeg**.
-- Requisitos no servidor: `ffmpeg` (ex.: `apt install ffmpeg`) e, para a voz,
-  `OPENAI_API_KEY` **ou** `espeak-ng`/`pico2wave` (ex.: `apt install espeak-ng`).
-- É o fallback automático quando não há chave de provedor de vídeo, desde que o ffmpeg exista.
+**(D) Produção automatizada ("assembled") — grátis, FUNCIONA SEM INSTALAR NADA NO SO:**
+- Gera um **MP4 real** (H.264/AAC, 1280×720): roteiro → cenas **animadas** (movimento de
+  câmera `zoompan` + fades) → **narração pt** → **legendas queimadas** → montagem com ffmpeg.
+- **ffmpeg** vem do pacote npm `ffmpeg-static` (binário embutido) — não precisa de `apt`.
+- **Narração pt** vem do pacote npm `mespeak` (eSpeak em JS, voz pt embutida, offline).
+- Opcional: `OPENAI_API_KEY` ativa uma voz mais natural (OpenAI TTS); `espeak-ng`/`pico2wave`
+  do SO também são usados se existirem. A seleção é automática (melhor opção disponível).
+- É o **motor padrão gratuito**: funciona assim que o `npm install` roda, inclusive em contêiner.
+
+### Deploy com persistência (Docker)
+O backend precisa de armazenamento persistente para o banco e os vídeos gerados.
+Use o `Dockerfile` (em `server/`) e o `docker-compose.yml` (na raiz):
+```bash
+cp server/.env.example .env     # defina ao menos JWT_SECRET
+docker compose up -d --build    # sobe site + API + worker; volume "umbanda-data" persiste tudo
+```
+O `ffmpeg-static` e o `meSpeak` já vêm no `npm install` da imagem — **não é preciso
+instalar ffmpeg/espeak manualmente**, e nada se perde ao reiniciar o contêiner.
+Qualquer PaaS que rode Docker com volume (Fly.io, Render, Railway, VPS) serve.
 
 ### Custos reais (preços oficiais, out/2026)
 - **Hugging Face:** gratuito (cota mensal de inferência, sem cartão).

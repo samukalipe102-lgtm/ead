@@ -1398,7 +1398,9 @@ function VideoAiAdmin({
     className: "font-mono"
   }, "VIDEO_AI_URL"), "+", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "VIDEO_AI_KEY"), "."), /*#__PURE__*/React.createElement("p", null, "Sem nenhum, nada \xE9 gerado ou fabricado.")), /*#__PURE__*/React.createElement("div", {
+  }, "VIDEO_AI_KEY"), "."), /*#__PURE__*/React.createElement("p", null, "Sem nenhum, nada \xE9 gerado ou fabricado.")), status.configured && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-forest-600"
+  }, "Motor: ", /*#__PURE__*/React.createElement("strong", null, status.provider), status.ttsBackend ? ' · narração: ' + status.ttsBackend : '', status.ffmpegAvailable ? ' · ffmpeg ✓' : ''), /*#__PURE__*/React.createElement("div", {
     className: "grid grid-cols-1 md:grid-cols-2 gap-4 text-xs"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
     className: "block font-bold text-forest-800 mb-1"
