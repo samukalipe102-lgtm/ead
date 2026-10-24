@@ -9,6 +9,7 @@ import { initDb } from './db/index.js';
 import { seed } from './db/seed.js';
 import { startVideoWorker } from './video-worker.js';
 import { videoAiStatus } from './video.js';
+import { restoreIfNeeded, startBackupScheduler, backupEnabled } from './persistence.js';
 
 import authRoutes from './routes/auth.routes.js';
 import coursesRoutes from './routes/courses.routes.js';
@@ -19,6 +20,10 @@ import adminRoutes from './routes/admin.routes.js';
 import miscRoutes from './routes/misc.routes.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
+
+// --- Persistência gratuita (opcional): restaura do backup ANTES de abrir o banco ---
+// Em hospedagem de disco efêmero, recupera banco + vídeos do repo de backup.
+restoreIfNeeded();
 
 // --- Inicialização do banco ---
 const dbPath = resolveDbPath();
@@ -79,6 +84,9 @@ app.use((err, req, res, next) => {
 // Worker da fila de geração de videoaulas (processa jobs fora da requisição HTTP).
 startVideoWorker();
 
+// Agendador de backup gratuito (só ativa se BACKUP_GIT_REPO/TOKEN estiverem definidos).
+startBackupScheduler();
+
 export function start() {
   return app.listen(config.port, () => {
     console.log(`\n🌿 Servidor EAD Umbanda ouvindo em http://localhost:${config.port}`);
@@ -87,6 +95,7 @@ export function start() {
     console.log(`   Tutor de IA: ${aiConfigured() ? 'configurado (' + config.ai.provider + ')' : 'NÃO configurado (recurso indisponível)'}`);
     const vst = videoAiStatus();
     console.log(`   Vídeo IA:    ${vst.configured ? 'motor ' + vst.provider + (vst.ttsBackend ? ' · narração ' + vst.ttsBackend : '') : 'NÃO configurado (geração indisponível)'}`);
+    console.log(`   Backup Git:  ${backupEnabled() ? 'ATIVO (persistência em disco efêmero)' : 'desligado (use volume persistente)'}`);
   });
 }
 
