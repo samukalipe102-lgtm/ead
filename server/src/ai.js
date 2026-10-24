@@ -73,3 +73,30 @@ async function askOpenAI(history) {
   if (!reply) return { ok: false, reason: 'AI_EMPTY_RESPONSE' };
   return { ok: true, reply };
 }
+
+// Gera (ou revisa) um roteiro de videoaula a partir do tema/conteúdo da aula.
+// Usa a IA quando configurada; sem IA, devolve um roteiro-base DERIVADO do
+// conteúdo real da aula (não inventa fundamento religioso) e sinaliza a origem.
+export async function generateScript({ title, baseContent, instruction }) {
+  const ask =
+    'Escreva um roteiro de videoaula sóbrio e didático para a aula a seguir, ' +
+    'respeitando a diversidade das tradições da Umbanda. Não invente fundamentos, ' +
+    'fontes ou referências. Organize em parágrafos curtos separados por linha em branco ' +
+    '(cada parágrafo vira um slide). Baseie-se estritamente no conteúdo fornecido.\n\n' +
+    `TÍTULO: ${title}\n\nCONTEÚDO BASE:\n${baseContent || '(sem conteúdo prévio)'}\n\n` +
+    (instruction ? `INSTRUÇÃO ADICIONAL: ${instruction}\n` : '');
+
+  if (aiConfigured()) {
+    const r = await askTutor([{ role: 'user', body: ask }]);
+    if (r.ok) return { ok: true, script: r.reply, source: 'ai' };
+    // Se a IA falhar, cai para o roteiro-base (honesto).
+  }
+
+  // Roteiro-base derivado do conteúdo real (sem IA).
+  const paragraphs = String(baseContent || title || '')
+    .split(/\n\s*\n/).map((p) => p.trim()).filter(Boolean);
+  const intro = `${title}`;
+  const body = paragraphs.length ? paragraphs : [String(baseContent || title || '').trim()];
+  const script = [intro, ...body].join('\n\n');
+  return { ok: true, script, source: 'template' };
+}

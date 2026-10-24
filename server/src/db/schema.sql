@@ -168,6 +168,32 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   details    TEXT
 );
 
+-- Tarefas de geração de videoaula por IA (fluxo assíncrono, estados reais).
+-- A geração NÃO ocorre na requisição HTTP; um worker processa a fila.
+CREATE TABLE IF NOT EXISTS video_jobs (
+  id            TEXT PRIMARY KEY,
+  lesson_id     TEXT NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+  course_id     TEXT NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+  title         TEXT,
+  script        TEXT,                 -- roteiro final usado na geração
+  engine        TEXT NOT NULL,        -- 'auto' | 'huggingface' | 'replicate' | 'custom' | 'assembled'
+  -- Estados reais acompanhados no backend:
+  -- QUEUED | SUBMITTING | PROCESSING | COMPLETED | FAILED | CANCELED
+  status        TEXT NOT NULL DEFAULT 'QUEUED'
+                  CHECK (status IN ('QUEUED','SUBMITTING','PROCESSING','COMPLETED','FAILED','CANCELED')),
+  provider_job_id TEXT,               -- id da tarefa no provedor (quando houver)
+  result_url    TEXT,                 -- caminho público do vídeo gerado
+  error         TEXT,
+  -- Progresso: só preenchido quando há base real (ex.: provedor informou). Senão NULL.
+  progress      INTEGER,
+  published     INTEGER NOT NULL DEFAULT 0,   -- 1 após publicação na aula
+  created_by    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_video_jobs_status ON video_jobs(status);
+CREATE INDEX IF NOT EXISTS idx_video_jobs_lesson ON video_jobs(lesson_id);
+
 CREATE INDEX IF NOT EXISTS idx_modules_course ON modules(course_id);
 CREATE INDEX IF NOT EXISTS idx_lessons_module ON lessons(module_id);
 CREATE INDEX IF NOT EXISTS idx_messages_thread ON messages(thread_id);

@@ -212,96 +212,194 @@ function AuditAdmin() {
   );
 }
 
-// Geração de vídeo por IA (gratuita via Hugging Face). Mostra estado honesto e
-// permite gerar o vídeo de cada aula, com estados reais (processando/concluído/erro).
+// GERADOR DE VIDEOAULAS COM IA — fluxo completo e assíncrono.
+// Etapas: selecionar curso/módulo/aula -> título + roteiro (gerável por IA) ->
+// escolher motor -> criar job -> acompanhar estado real -> prévia -> publicar.
 function VideoAiAdmin({ showToast }) {
   const [status, setStatus] = useState(null);
   const [courses, setCourses] = useState(null);
-  const [busyLesson, setBusyLesson] = useState(null);
+  const [courseId, setCourseId] = useState('');
+  const [lessonId, setLessonId] = useState('');
+  const [title, setTitle] = useState('');
+  const [script, setScript] = useState('');
+  const [engine, setEngine] = useState('auto');
+  const [scriptSource, setScriptSource] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [busy, setBusy] = useState(false);
 
-  const loadCourses = useCallback(async () => {
-    const d = await Api.myCourses();
-    setCourses(d.courses);
-  }, []);
+  const loadJobs = useCallback(() => Api.videoJobs().then((d) => setJobs(d.jobs)).catch(() => {}), []);
 
   useEffect(() => {
     Api.videoAiStatus().then(setStatus).catch(() => setStatus({ configured: false }));
-    loadCourses();
+    Api.myCourses().then((d) => { setCourses(d.courses); if (d.courses[0]) setCourseId(d.courses[0].id); }).catch(() => setCourses([]));
+    loadJobs();
   }, []);
 
-  const generate = async (lesson) => {
-    setBusyLesson(lesson.id);
+  // Polling do estado dos jobs enquanto houver algum em andamento.
+  useEffect(() => {
+    const active = jobs.some((j) => ['QUEUED', 'SUBMITTING', 'PROCESSING'].includes(j.status));
+    if (!active) return;
+    const t = setInterval(loadJobs, 3000);
+    return () => clearInterval(t);
+  }, [jobs]);
+
+  const course = (courses || []).find((c) => c.id === courseId);
+  const lessons = course ? course.modules.flatMap((m) => m.lessons.map((l) => ({ ...l, moduleTitle: m.title }))) : [];
+
+  const onSelectLesson = (id) => {
+    setLessonId(id);
+    const l = lessons.find((x) => x.id === id);
+    if (l && !title) setTitle(l.title);
+  };
+
+  const genScript = async () => {
+    if (!lessonId) { showToast('Selecione a aula primeiro.', 'error'); return; }
+    setBusy(true);
     try {
-      const r = await Api.generateLessonVideo(lesson.id);
-      showToast('Vídeo gerado e associado à aula "' + lesson.title + '".');
-      await loadCourses();
+      const r = await Api.generateScript({ lessonId, title });
+      setScript(r.script);
+      setScriptSource(r.source);
+      showToast(r.source === 'ai' ? 'Roteiro gerado pela IA.' : 'Roteiro-base derivado do conteúdo da aula (sem IA).');
+    } catch (e) { showToast('Falha ao gerar roteiro: ' + (e.message || ''), 'error'); }
+    finally { setBusy(false); }
+  };
+
+  const createJob = async () => {
+    if (!lessonId || !script.trim()) { showToast('Selecione a aula e informe o roteiro.', 'error'); return; }
+    setBusy(true);
+    try {
+      await Api.createVideoJob({ lessonId, title, script, engine });
+      showToast('Tarefa de geração enfileirada. Acompanhe o estado abaixo.');
+      await loadJobs();
     } catch (e) {
       const reason = e.data && e.data.reason ? e.data.reason : (e.message || '');
-      if (reason === 'MODEL_LOADING') {
-        showToast('O modelo está carregando (cold start). Tente novamente em ~1 minuto.', 'error');
-      } else if (reason === 'VIDEO_AI_NOT_CONFIGURED') {
-        showToast('Geração de vídeo não configurada no servidor (defina HF_TOKEN).', 'error');
-      } else {
-        showToast('Falha real na geração: ' + reason + '. Nenhum vídeo fabricado.', 'error');
-      }
-      await loadCourses();
-    } finally {
-      setBusyLesson(null);
-    }
+      if (reason === 'VIDEO_AI_NOT_CONFIGURED') showToast('Nenhum motor de vídeo disponível no servidor. Veja as instruções acima.', 'error');
+      else showToast('Falha ao criar tarefa: ' + reason, 'error');
+    } finally { setBusy(false); }
+  };
+
+  const act = async (jobId, kind) => {
+    try {
+      if (kind === 'publish') { await Api.publishVideoJob(jobId); showToast('Vídeo publicado na aula.'); }
+      if (kind === 'retry') { await Api.retryVideoJob(jobId); showToast('Tarefa re-enfileirada.'); }
+      if (kind === 'cancel') { await Api.cancelVideoJob(jobId); showToast('Tarefa cancelada.'); }
+      await loadJobs();
+    } catch (e) { showToast(e.message || 'Falha na ação.', 'error'); }
+  };
+
+  const STATE_LABEL = {
+    QUEUED: 'Aguardando na fila', SUBMITTING: 'Enviando solicitação', PROCESSING: 'Em processamento',
+    COMPLETED: 'Concluído', FAILED: 'Falha', CANCELED: 'Cancelado',
+  };
+  const STATE_COLOR = {
+    QUEUED: 'bg-ivory-200 text-forest-700', SUBMITTING: 'bg-gold-100 text-gold-700', PROCESSING: 'bg-gold-100 text-gold-700',
+    COMPLETED: 'bg-forest-100 text-forest-800', FAILED: 'bg-red-100 text-red-700', CANCELED: 'bg-ivory-200 text-forest-600',
   };
 
   if (!status || !courses) return <Spinner />;
 
   return (
-    <div className="bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-5">
-      <div className="flex items-center justify-between border-b border-ivory-200 pb-3">
-        <div>
-          <h3 className="font-serif font-bold text-lg text-forest-900">🎬 Geração de Vídeo por IA</h3>
-          <p className="text-xs text-forest-600">Integração gratuita via Hugging Face. A chave fica apenas no servidor.</p>
+    <div className="space-y-6">
+      <div className="bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-5">
+        <div className="flex items-center justify-between border-b border-ivory-200 pb-3">
+          <div>
+            <h3 className="font-serif font-bold text-lg text-forest-900">🎬 Gerador de Videoaulas com IA</h3>
+            <p className="text-xs text-forest-600">Gera um vídeo real e o associa à aula. A publicação é uma etapa separada.</p>
+          </div>
+          <span className={`text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`}>
+            {status.configured ? 'Motor ativo: ' + status.provider : 'Nenhum motor disponível'}
+          </span>
         </div>
-        <span className={`text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`}>
-          {status.configured ? 'Vídeo IA ativo' : 'Vídeo IA NÃO configurado'}
-        </span>
+
+        {!status.configured && (
+          <div className="bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed space-y-1">
+            <p>Configure <strong>um</strong> motor no servidor (detecção automática):</p>
+            <p><strong>Grátis (API, sem cartão):</strong> <span className="font-mono">HF_TOKEN</span> (Hugging Face, perm. "Inference Providers").</p>
+            <p><strong>Grátis (sem provedor):</strong> motor <strong>assembled</strong> = roteiro + narração + slides + vídeo via <span className="font-mono">ffmpeg</span> instalado no servidor (+ opcional <span className="font-mono">espeak-ng</span> ou <span className="font-mono">OPENAI_API_KEY</span> para a voz).</p>
+            <p><strong>Pago:</strong> <span className="font-mono">REPLICATE_API_TOKEN</span> (~US$0,05/vídeo) ou <span className="font-mono">VIDEO_AI_URL</span>+<span className="font-mono">VIDEO_AI_KEY</span>.</p>
+            <p>Sem nenhum, nada é gerado ou fabricado.</p>
+          </div>
+        )}
+
+        {/* Formulário de criação */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          <div>
+            <label className="block font-bold text-forest-800 mb-1">Curso</label>
+            <select value={courseId} onChange={(e) => { setCourseId(e.target.value); setLessonId(''); }} className="w-full border border-ivory-300 rounded p-2">
+              {courses.map((c) => <option key={c.id} value={c.id}>{c.title}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block font-bold text-forest-800 mb-1">Módulo / Aula</label>
+            <select value={lessonId} onChange={(e) => onSelectLesson(e.target.value)} className="w-full border border-ivory-300 rounded p-2">
+              <option value="">— selecione —</option>
+              {lessons.map((l) => <option key={l.id} value={l.id}>{l.moduleTitle} · {l.title}</option>)}
+            </select>
+          </div>
+          <div className="md:col-span-2">
+            <label className="block font-bold text-forest-800 mb-1">Título da aula</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-ivory-300 rounded p-2" placeholder="Título exibido no vídeo" />
+          </div>
+          <div className="md:col-span-2">
+            <div className="flex items-center justify-between mb-1">
+              <label className="font-bold text-forest-800">Roteiro {scriptSource && <span className="text-[10px] text-forest-500">({scriptSource === 'ai' ? 'gerado por IA' : 'derivado do conteúdo'})</span>}</label>
+              <button type="button" onClick={genScript} disabled={busy || !lessonId} className="bg-ivory-200 hover:bg-ivory-300 disabled:opacity-40 text-forest-800 font-bold px-3 py-1 rounded text-[11px]">✨ Gerar/Revisar roteiro com IA</button>
+            </div>
+            <textarea rows={6} value={script} onChange={(e) => setScript(e.target.value)} className="w-full border border-ivory-300 rounded p-2 font-mono" placeholder="Escreva o roteiro ou gere com a IA. Parágrafos separados por linha em branco viram slides." />
+          </div>
+          <div>
+            <label className="block font-bold text-forest-800 mb-1">Motor</label>
+            <select value={engine} onChange={(e) => setEngine(e.target.value)} className="w-full border border-ivory-300 rounded p-2">
+              <option value="auto">Automático (recomendado)</option>
+              <option value="assembled">Produção automatizada (slides + narração)</option>
+              <option value="huggingface">Hugging Face (grátis)</option>
+              <option value="replicate">Replicate</option>
+              <option value="custom">Endpoint próprio</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button onClick={createJob} disabled={busy || !status.configured} className="w-full bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold py-2.5 rounded-xl shadow">
+              Gerar videoaula
+            </button>
+          </div>
+        </div>
       </div>
 
-      {!status.configured && (
-        <div className="bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed space-y-1">
-          <p>Para ativar, configure <strong>um</strong> provedor no servidor (o sistema detecta automaticamente):</p>
-          <p><strong>Grátis (sem cartão):</strong> conta em <strong>huggingface.co</strong>, token com permissão
-          "Inference Providers" → <span className="font-mono">HF_TOKEN</span>.</p>
-          <p><strong>Replicate:</strong> <span className="font-mono">REPLICATE_API_TOKEN</span> (créditos free/trial).</p>
-          <p><strong>Outro/próprio:</strong> <span className="font-mono">VIDEO_AI_URL</span> + <span className="font-mono">VIDEO_AI_KEY</span>.</p>
-          <p>Enquanto nenhum estiver configurado, nenhum vídeo é gerado ou fabricado.</p>
+      {/* Fila / estado real das tarefas */}
+      <div className="bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="font-serif font-bold text-base text-forest-900">Tarefas de geração</h4>
+          <button onClick={loadJobs} className="text-xs text-forest-600 underline">atualizar</button>
         </div>
-      )}
-      {status.configured && (
-        <div className="text-[11px] text-forest-600">Provedor ativo: <strong>{status.provider}</strong>{status.model ? ' · modelo: ' + status.model : ''}</div>
-      )}
-
-      <div className="space-y-4">
-        {courses.map((c) => (
-          <div key={c.id} className="border border-ivory-200 rounded-xl p-4 space-y-2">
-            <h4 className="font-serif font-bold text-sm text-forest-900">{c.title}</h4>
-            {c.modules.flatMap((m) => m.lessons).map((l) => (
-              <div key={l.id} className="flex items-center justify-between text-xs py-1.5 border-t border-ivory-100">
-                <span className="text-forest-800 pr-3 truncate">{l.title}</span>
-                <div className="flex items-center gap-2 shrink-0">
-                  <VideoStateBadge status={l.videoStatus} />
-                  {l.aiVideoStatus && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-ivory-200 text-forest-700 font-mono">IA: {l.aiVideoStatus}</span>
-                  )}
-                  <button
-                    onClick={() => generate(l)}
-                    disabled={!status.configured || busyLesson === l.id}
-                    className="bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold px-3 py-1.5 rounded-lg text-[11px]"
-                  >
-                    {busyLesson === l.id ? 'Gerando...' : 'Gerar vídeo IA'}
-                  </button>
+        {jobs.length === 0 ? <p className="text-xs italic text-forest-600">Nenhuma tarefa ainda.</p> : (
+          <div className="space-y-3">
+            {jobs.map((j) => (
+              <div key={j.id} className="border border-ivory-200 rounded-xl p-3 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-forest-900">{j.lesson_title || j.title}</span>
+                  <span className={`px-2 py-0.5 rounded font-bold text-[10px] ${STATE_COLOR[j.status]}`}>
+                    {STATE_LABEL[j.status] || j.status}{typeof j.progress === 'number' ? ' · ' + j.progress + '%' : ''}
+                  </span>
+                </div>
+                <div className="text-[10px] text-forest-500 font-mono">motor: {j.engine} · {String(j.updated_at).slice(0, 16)}{j.published ? ' · PUBLICADO' : ''}</div>
+                {j.error && <div className="text-[11px] text-red-600">Erro: {j.error}</div>}
+                {j.status === 'COMPLETED' && j.result_url && (
+                  <div className="space-y-2">
+                    <video controls className="w-full max-w-md rounded-lg border border-ivory-300 bg-black" src={(window.UMBANDA_CONFIG.apiBase.replace('/api','')) + j.result_url} />
+                    <div className="flex gap-2">
+                      {!j.published && <button onClick={() => act(j.id, 'publish')} className="bg-gold-500 hover:bg-gold-600 text-forest-900 font-bold px-3 py-1.5 rounded-lg text-[11px]">Publicar na aula</button>}
+                      {j.published && <span className="text-forest-700 font-bold">✓ Publicado</span>}
+                    </div>
+                  </div>
+                )}
+                <div className="flex gap-2">
+                  {(j.status === 'FAILED' || j.status === 'CANCELED') && <button onClick={() => act(j.id, 'retry')} className="bg-forest-700 text-ivory-50 px-3 py-1 rounded text-[11px] font-bold">Tentar novamente</button>}
+                  {['QUEUED', 'PROCESSING', 'SUBMITTING'].includes(j.status) && <button onClick={() => act(j.id, 'cancel')} className="bg-ivory-200 text-forest-700 px-3 py-1 rounded text-[11px] font-bold">Cancelar</button>}
                 </div>
               </div>
             ))}
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

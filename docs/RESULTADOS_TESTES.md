@@ -18,12 +18,22 @@ Comando: `cd server && node --test` — sobe a API real em memória, banco tempo
 | 8 | Mensagens: área real, persistente e **isolada por usuário** (Carlos não vê thread da Maria → 403) | **PASS** |
 | 9 | Tutor de IA **separado** das mensagens; sem chave → 503 "não configurado" | **PASS** |
 | 10 | E-mail de teste sem SMTP → 502 com `SMTP_NOT_CONFIGURED` (**não finge sucesso**) | **PASS** |
-| 11 | Vídeo IA: status honesto; sem HF_TOKEN → 503 "não configurado"; aluno → 403 | **PASS** |
-| 12 | Inscrição: solicitar → aprovar cria usuário e concede acesso real | **PASS** |
-| 13 | Certificado só emite após concluir todas as aulas; verificação pública funciona | **PASS** |
-| 14 | Progresso: percentual reflete aulas concluídas | **PASS** |
+| 11 | Vídeo IA: status honesto + geração de roteiro derivada do conteúdo real | **PASS** |
+| 12 | Vídeo IA: criar job sem motor → 503 (não fabrica); rotas exigem admin (aluno → 403) | **PASS** |
+| 13 | **Vídeo IA: fluxo assíncrono completo** (fila → worker → COMPLETED → arquivo servido → publicação) | **PASS** |
+| 14 | Inscrição: solicitar → aprovar cria usuário e concede acesso real | **PASS** |
+| 15 | Certificado só emite após concluir todas as aulas; verificação pública funciona | **PASS** |
+| 16 | Progresso: percentual reflete aulas concluídas | **PASS** |
 
-**Total: 14/14 aprovados, 0 falhas.**
+**Total: 16/16 aprovados, 0 falhas.**
+
+Destaque — o teste 13 sobe um **provedor HTTP local** que devolve bytes de vídeo e
+configura o motor `custom`, exercitando o pipeline inteiro de ponta a ponta:
+criação do job (QUEUED) → worker processa (PROCESSING → COMPLETED) → o arquivo é
+**servido publicamente** em `/uploads/ai-videos/...` → confirma que **não** publica
+sozinho → publicação explícita associa o vídeo à aula. Isso prova o fluxo real; a
+única coisa trocada foi a origem dos bytes (servidor local no lugar de um provedor
+externo, inacessível pelo sandbox).
 
 ## ✅ Verificações de serving (backend + site web juntos)
 
@@ -69,11 +79,16 @@ Sou explícito sobre o que **não** foi possível validar aqui, conforme solicit
    executa binários Windows. O empacotamento é feito pela CI em `windows-latest`
    (`.github/workflows/desktop-build.yml`). **Como validar:** push + tag `v1.0.0` → baixar
    o instalador da Release e instalar no Windows (ver `docs/OPERACAO.md`).
-5. **Geração de vídeo por IA (gratuita via Hugging Face)** — **implementada**. O caminho
-   "não configurado" (sem `HF_TOKEN`) é testado automaticamente (teste 11). O envio real
-   ao Hugging Face **não** pôde rodar no sandbox (sem egress de rede ao provedor). **Como
-   validar:** defina `HF_TOKEN` (grátis) e clique em "Gerar vídeo IA" na aba "Vídeos IA"
-   do painel admin. Ver `docs/OPERACAO.md §7`.
+5. **Geração de vídeo por IA (multi-motor, com fluxo assíncrono)** — **implementada e
+   testada de ponta a ponta** (teste 13, com provedor local). O que **não** pôde rodar no
+   sandbox e como validar:
+   - **Provedores externos reais** (Hugging Face / Replicate): o sandbox não tem egress de
+     rede a eles. Validar configurando a chave e gerando pela aba do admin.
+   - **Motor "assembled" (ffmpeg):** o sandbox não tem `ffmpeg` nem TTS instalados, então a
+     montagem final do MP4 não rodou aqui. **Porém** a renderização de slides (peça do motor,
+     sem dependências) foi executada e **gerou um PNG 1280×720 válido** na identidade visual
+     (ver `.kiro/artifacts/screenshots/slide-demo2.png`). Validar o MP4 completo num servidor
+     com `apt install ffmpeg espeak-ng`.
 
 ## Observação sobre persistência e preservação
 
