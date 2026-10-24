@@ -106,23 +106,41 @@ API** — seus "grátis" são via interface web, não por API programática. O c
 gratuito e documentado para **API** é o roteador de Inference Providers do Hugging
 Face com modelos abertos (ex.: `Wan-AI/Wan2.2-TI2V-5B`, LTX-Video, HunyuanVideo).
 
-### Vários provedores — configure UM; o servidor detecta sozinho
-A seleção é automática pela chave presente (ou force com `VIDEO_AI_PROVIDER`):
+### Fluxo (igual para todos os motores)
+No painel admin → aba **"🎬 Gerador de Videoaulas com IA"**:
+1. Selecione curso → módulo/aula → título.
+2. Escreva o roteiro ou clique em **"Gerar/Revisar roteiro com IA"** (deriva do
+   conteúdo real da aula; usa IA de texto se configurada).
+3. Escolha o motor (ou deixe "Automático") e clique em **"Gerar videoaula"**.
+4. A tarefa entra na **fila** (estados reais: na fila → processando → concluído/falha).
+   O processamento roda em um **worker no backend**, fora da requisição HTTP.
+5. Veja a **prévia** do vídeo concluído e clique em **"Publicar na aula"** (etapa
+   separada). Em falha, use **"Tentar novamente"**; **"Cancelar"** interrompe a fila.
 
-**(A) Hugging Face — grátis, sem cartão (recomendado):**
-1. Conta em **huggingface.co** → *Settings → Access Tokens* → token com permissão
-   **"Inference Providers"**.
-2. No servidor: `HF_TOKEN=hf_...` (opcionais: `HF_VIDEO_MODEL`, `HF_VIDEO_PROVIDER`).
+### Motores — configure UM; o servidor detecta sozinho
+Seleção automática (ou force com `VIDEO_AI_PROVIDER`):
 
-**(B) Replicate — créditos free/trial:**
-- `REPLICATE_API_TOKEN=r8_...` (opcional: `REPLICATE_VIDEO_MODEL`, default `wan-video/wan-2.2-t2v-fast`).
+**(A) Hugging Face — grátis, sem cartão:**
+- Conta em **huggingface.co** → token com permissão **"Inference Providers"** → `HF_TOKEN=hf_...`.
+
+**(B) Replicate — pago (~US$0,05/vídeo), tem créditos free/trial:**
+- `REPLICATE_API_TOKEN=r8_...` (opcional: `REPLICATE_VIDEO_MODEL`).
 
 **(C) Endpoint próprio/outro provedor:**
-- `VIDEO_AI_URL=...` + `VIDEO_AI_KEY=...` (+ `VIDEO_AI_MODEL`). Aceita resposta em
-  bytes de vídeo ou JSON com `url`.
+- `VIDEO_AI_URL=...` + `VIDEO_AI_KEY=...` (+ `VIDEO_AI_MODEL`). Resposta: bytes de vídeo ou JSON `{ url }`.
 
-Depois, reinicie o backend e use o painel admin → aba **"🎬 Vídeos IA"** →
-*"Gerar vídeo IA"* na aula. O painel mostra qual provedor está ativo.
+**(D) Produção automatizada ("assembled") — grátis, sem provedor de vídeo:**
+- Gera um **MP4 real** a partir de roteiro → narração (TTS) → slides → montagem com **ffmpeg**.
+- Requisitos no servidor: `ffmpeg` (ex.: `apt install ffmpeg`) e, para a voz,
+  `OPENAI_API_KEY` **ou** `espeak-ng`/`pico2wave` (ex.: `apt install espeak-ng`).
+- É o fallback automático quando não há chave de provedor de vídeo, desde que o ffmpeg exista.
+
+### Custos reais (preços oficiais, out/2026)
+- **Hugging Face:** gratuito (cota mensal de inferência, sem cartão).
+- **Produção automatizada (D):** gratuita (ffmpeg + espeak-ng); ou centavos se usar OpenAI TTS.
+- **Replicate (Wan 2.2):** ~**US$ 0,05 por vídeo** (fonte: blog oficial Replicate).
+- **HeyGen (avatar narrado, Alternativa B):** pay-as-you-go, ~US$ 0,05/seg (~US$ 3/min);
+  plano grátis dá 3 vídeos/mês. (Fonte: HeyGen pricing/docs.) *Valores reformulados p/ conformidade.*
 
 ### Comportamento honesto
 - A chave fica **apenas no servidor** (nunca no frontend/executável).

@@ -79,6 +79,12 @@ window.Api = (function () {
     emailVerify: () => request('GET', '/admin/email-verify'),
     emailTest: (to) => request('POST', '/admin/email-test', { to }),
     videoAiStatus: () => request('GET', '/admin/video-ai/status'),
-    generateLessonVideo: (lessonId, prompt) => request('POST', '/admin/video-ai/lessons/' + lessonId + '/generate', { prompt }),
+    generateScript: (payload) => request('POST', '/admin/video-ai/script', payload),
+    createVideoJob: (payload) => request('POST', '/admin/video-ai/jobs', payload),
+    videoJobs: () => request('GET', '/admin/video-ai/jobs'),
+    videoJob: (id) => request('GET', '/admin/video-ai/jobs/' + id),
+    retryVideoJob: (id) => request('POST', '/admin/video-ai/jobs/' + id + '/retry'),
+    cancelVideoJob: (id) => request('POST', '/admin/video-ai/jobs/' + id + '/cancel'),
+    publishVideoJob: (id) => request('POST', '/admin/video-ai/jobs/' + id + '/publish'),
   };
 })();

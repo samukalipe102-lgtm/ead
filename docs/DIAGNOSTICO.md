@@ -57,10 +57,16 @@ eles eram consequência direta da ausência de uma arquitetura real. A solução
 9. **App desktop Electron** (`desktop/`) apontando para o backend de produção, com tela de
    offline, ícone profissional e empacotamento `.exe` (NSIS + portátil) via GitHub Actions.
 
-10. **Geração de vídeo por IA (gratuita)** (`server/src/video.js`, `/api/admin/video-ai`):
-    integração real via **Hugging Face Inference Providers** (gratuito, sem cartão).
-    Estados reais na aula (`PROCESSING → DONE | FAILED`), vídeo salvo e associado.
-    Sem `HF_TOKEN`, reporta "não configurado" (nada fabricado). Ver `docs/OPERACAO.md §7`.
+10. **Gerador de Videoaulas com IA — fluxo assíncrono completo** (`server/src/video.js`,
+    `video-worker.js`, `tts.js`, `slides.js`, tabela `video_jobs`, rotas `/api/admin/video-ai`):
+    - **4 motores**: Hugging Face (grátis), Replicate, endpoint próprio e **produção
+      automatizada** (roteiro + narração TTS + slides + ffmpeg → MP4 real, sem provedor pago).
+    - **Fila real** processada por worker fora da requisição HTTP; estados
+      `QUEUED → SUBMITTING → PROCESSING → COMPLETED | FAILED | CANCELED`.
+    - Roteiro gerável/revisável por IA (ou derivado do conteúdo real da aula).
+    - **Geração e publicação são etapas separadas**: o admin revisa a prévia e só então
+      publica na aula. Retry/cancelar disponíveis. Sem motor, reporta "não configurado".
+    - Área **distinta** do Tutor de IA, do player e das mensagens. Ver `docs/OPERACAO.md §7`.
 
 ## Pendências que dependem de você (fora do executável)
 

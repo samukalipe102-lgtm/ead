@@ -2,6 +2,7 @@ import 'dotenv/config';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, isAbsolute } from 'node:path';
 import { mkdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, '..');
@@ -55,6 +56,9 @@ export const config = {
     customUrl: process.env.VIDEO_AI_URL || '',
     customKey: process.env.VIDEO_AI_KEY || '',
     customModel: process.env.VIDEO_AI_MODEL || '',
+
+    // Caminho do ffmpeg (usado pelo motor "assembled" — produção automatizada).
+    ffmpegPath: process.env.FFMPEG_PATH || 'ffmpeg',
   },
 
   corsOrigin: process.env.CORS_ORIGIN || '*',
@@ -93,19 +97,32 @@ export function aiConfigured() {
 }
 
 // Resolve qual provedor de vídeo está ativo, pela chave presente ou escolha explícita.
-// Retorna 'huggingface' | 'replicate' | 'custom' | null.
+// Retorna 'huggingface' | 'replicate' | 'custom' | 'assembled' | null.
+// 'assembled' = produção automatizada (roteiro + narração + slides + ffmpeg); não
+// exige chave de provedor de vídeo, por isso é o fallback gratuito padrão.
 export function resolveVideoProvider() {
   const v = config.video;
   if (v.provider) {
     if (v.provider === 'huggingface' && v.hfToken) return 'huggingface';
     if (v.provider === 'replicate' && v.replicateToken) return 'replicate';
     if (v.provider === 'custom' && v.customUrl) return 'custom';
+    if (v.provider === 'assembled') return 'assembled';
     return null; // forçado mas sem credencial
   }
   if (v.hfToken) return 'huggingface';
   if (v.replicateToken) return 'replicate';
   if (v.customUrl) return 'custom';
+  // Fallback: produção automatizada — só é viável quando há ffmpeg no servidor.
+  if (hasFfmpeg()) return 'assembled';
   return null;
+}
+
+let _ffmpegCache;
+export function hasFfmpeg() {
+  if (_ffmpegCache !== undefined) return _ffmpegCache;
+  try { _ffmpegCache = spawnSync(config.video.ffmpegPath, ['-version'], { stdio: 'ignore' }).status === 0; }
+  catch { _ffmpegCache = false; }
+  return _ffmpegCache;
 }
 
 export function videoAiConfigured() {

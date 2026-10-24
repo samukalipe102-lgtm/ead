@@ -1247,90 +1247,280 @@ function AuditAdmin() {
   }, l.details))))));
 }
 
-// Geração de vídeo por IA (gratuita via Hugging Face). Mostra estado honesto e
-// permite gerar o vídeo de cada aula, com estados reais (processando/concluído/erro).
+// GERADOR DE VIDEOAULAS COM IA — fluxo completo e assíncrono.
+// Etapas: selecionar curso/módulo/aula -> título + roteiro (gerável por IA) ->
+// escolher motor -> criar job -> acompanhar estado real -> prévia -> publicar.
 function VideoAiAdmin({
   showToast
 }) {
   const [status, setStatus] = useState(null);
   const [courses, setCourses] = useState(null);
-  const [busyLesson, setBusyLesson] = useState(null);
-  const loadCourses = useCallback(async () => {
-    const d = await Api.myCourses();
-    setCourses(d.courses);
-  }, []);
+  const [courseId, setCourseId] = useState('');
+  const [lessonId, setLessonId] = useState('');
+  const [title, setTitle] = useState('');
+  const [script, setScript] = useState('');
+  const [engine, setEngine] = useState('auto');
+  const [scriptSource, setScriptSource] = useState(null);
+  const [jobs, setJobs] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const loadJobs = useCallback(() => Api.videoJobs().then(d => setJobs(d.jobs)).catch(() => {}), []);
   useEffect(() => {
     Api.videoAiStatus().then(setStatus).catch(() => setStatus({
       configured: false
     }));
-    loadCourses();
+    Api.myCourses().then(d => {
+      setCourses(d.courses);
+      if (d.courses[0]) setCourseId(d.courses[0].id);
+    }).catch(() => setCourses([]));
+    loadJobs();
   }, []);
-  const generate = async lesson => {
-    setBusyLesson(lesson.id);
+
+  // Polling do estado dos jobs enquanto houver algum em andamento.
+  useEffect(() => {
+    const active = jobs.some(j => ['QUEUED', 'SUBMITTING', 'PROCESSING'].includes(j.status));
+    if (!active) return;
+    const t = setInterval(loadJobs, 3000);
+    return () => clearInterval(t);
+  }, [jobs]);
+  const course = (courses || []).find(c => c.id === courseId);
+  const lessons = course ? course.modules.flatMap(m => m.lessons.map(l => ({
+    ...l,
+    moduleTitle: m.title
+  }))) : [];
+  const onSelectLesson = id => {
+    setLessonId(id);
+    const l = lessons.find(x => x.id === id);
+    if (l && !title) setTitle(l.title);
+  };
+  const genScript = async () => {
+    if (!lessonId) {
+      showToast('Selecione a aula primeiro.', 'error');
+      return;
+    }
+    setBusy(true);
     try {
-      const r = await Api.generateLessonVideo(lesson.id);
-      showToast('Vídeo gerado e associado à aula "' + lesson.title + '".');
-      await loadCourses();
+      const r = await Api.generateScript({
+        lessonId,
+        title
+      });
+      setScript(r.script);
+      setScriptSource(r.source);
+      showToast(r.source === 'ai' ? 'Roteiro gerado pela IA.' : 'Roteiro-base derivado do conteúdo da aula (sem IA).');
+    } catch (e) {
+      showToast('Falha ao gerar roteiro: ' + (e.message || ''), 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
+  const createJob = async () => {
+    if (!lessonId || !script.trim()) {
+      showToast('Selecione a aula e informe o roteiro.', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      await Api.createVideoJob({
+        lessonId,
+        title,
+        script,
+        engine
+      });
+      showToast('Tarefa de geração enfileirada. Acompanhe o estado abaixo.');
+      await loadJobs();
     } catch (e) {
       const reason = e.data && e.data.reason ? e.data.reason : e.message || '';
-      if (reason === 'MODEL_LOADING') {
-        showToast('O modelo está carregando (cold start). Tente novamente em ~1 minuto.', 'error');
-      } else if (reason === 'VIDEO_AI_NOT_CONFIGURED') {
-        showToast('Geração de vídeo não configurada no servidor (defina HF_TOKEN).', 'error');
-      } else {
-        showToast('Falha real na geração: ' + reason + '. Nenhum vídeo fabricado.', 'error');
-      }
-      await loadCourses();
+      if (reason === 'VIDEO_AI_NOT_CONFIGURED') showToast('Nenhum motor de vídeo disponível no servidor. Veja as instruções acima.', 'error');else showToast('Falha ao criar tarefa: ' + reason, 'error');
     } finally {
-      setBusyLesson(null);
+      setBusy(false);
     }
+  };
+  const act = async (jobId, kind) => {
+    try {
+      if (kind === 'publish') {
+        await Api.publishVideoJob(jobId);
+        showToast('Vídeo publicado na aula.');
+      }
+      if (kind === 'retry') {
+        await Api.retryVideoJob(jobId);
+        showToast('Tarefa re-enfileirada.');
+      }
+      if (kind === 'cancel') {
+        await Api.cancelVideoJob(jobId);
+        showToast('Tarefa cancelada.');
+      }
+      await loadJobs();
+    } catch (e) {
+      showToast(e.message || 'Falha na ação.', 'error');
+    }
+  };
+  const STATE_LABEL = {
+    QUEUED: 'Aguardando na fila',
+    SUBMITTING: 'Enviando solicitação',
+    PROCESSING: 'Em processamento',
+    COMPLETED: 'Concluído',
+    FAILED: 'Falha',
+    CANCELED: 'Cancelado'
+  };
+  const STATE_COLOR = {
+    QUEUED: 'bg-ivory-200 text-forest-700',
+    SUBMITTING: 'bg-gold-100 text-gold-700',
+    PROCESSING: 'bg-gold-100 text-gold-700',
+    COMPLETED: 'bg-forest-100 text-forest-800',
+    FAILED: 'bg-red-100 text-red-700',
+    CANCELED: 'bg-ivory-200 text-forest-600'
   };
   if (!status || !courses) return /*#__PURE__*/React.createElement(Spinner, null);
   return /*#__PURE__*/React.createElement("div", {
+    className: "space-y-6"
+  }, /*#__PURE__*/React.createElement("div", {
     className: "bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-5"
   }, /*#__PURE__*/React.createElement("div", {
     className: "flex items-center justify-between border-b border-ivory-200 pb-3"
   }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
     className: "font-serif font-bold text-lg text-forest-900"
-  }, "\uD83C\uDFAC Gera\xE7\xE3o de V\xEDdeo por IA"), /*#__PURE__*/React.createElement("p", {
+  }, "\uD83C\uDFAC Gerador de Videoaulas com IA"), /*#__PURE__*/React.createElement("p", {
     className: "text-xs text-forest-600"
-  }, "Integra\xE7\xE3o gratuita via Hugging Face. A chave fica apenas no servidor.")), /*#__PURE__*/React.createElement("span", {
+  }, "Gera um v\xEDdeo real e o associa \xE0 aula. A publica\xE7\xE3o \xE9 uma etapa separada.")), /*#__PURE__*/React.createElement("span", {
     className: `text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`
-  }, status.configured ? 'Vídeo IA ativo' : 'Vídeo IA NÃO configurado')), !status.configured && /*#__PURE__*/React.createElement("div", {
+  }, status.configured ? 'Motor ativo: ' + status.provider : 'Nenhum motor disponível')), !status.configured && /*#__PURE__*/React.createElement("div", {
     className: "bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed space-y-1"
-  }, /*#__PURE__*/React.createElement("p", null, "Para ativar, configure ", /*#__PURE__*/React.createElement("strong", null, "um"), " provedor no servidor (o sistema detecta automaticamente):"), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Gr\xE1tis (sem cart\xE3o):"), " conta em ", /*#__PURE__*/React.createElement("strong", null, "huggingface.co"), ", token com permiss\xE3o \"Inference Providers\" \u2192 ", /*#__PURE__*/React.createElement("span", {
+  }, /*#__PURE__*/React.createElement("p", null, "Configure ", /*#__PURE__*/React.createElement("strong", null, "um"), " motor no servidor (detec\xE7\xE3o autom\xE1tica):"), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Gr\xE1tis (API, sem cart\xE3o):"), " ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "HF_TOKEN"), "."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Replicate:"), " ", /*#__PURE__*/React.createElement("span", {
+  }, "HF_TOKEN"), " (Hugging Face, perm. \"Inference Providers\")."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Gr\xE1tis (sem provedor):"), " motor ", /*#__PURE__*/React.createElement("strong", null, "assembled"), " = roteiro + narra\xE7\xE3o + slides + v\xEDdeo via ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "REPLICATE_API_TOKEN"), " (cr\xE9ditos free/trial)."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Outro/pr\xF3prio:"), " ", /*#__PURE__*/React.createElement("span", {
+  }, "ffmpeg"), " instalado no servidor (+ opcional ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "VIDEO_AI_URL"), " + ", /*#__PURE__*/React.createElement("span", {
+  }, "espeak-ng"), " ou ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "VIDEO_AI_KEY"), "."), /*#__PURE__*/React.createElement("p", null, "Enquanto nenhum estiver configurado, nenhum v\xEDdeo \xE9 gerado ou fabricado.")), status.configured && /*#__PURE__*/React.createElement("div", {
-    className: "text-[11px] text-forest-600"
-  }, "Provedor ativo: ", /*#__PURE__*/React.createElement("strong", null, status.provider), status.model ? ' · modelo: ' + status.model : ''), /*#__PURE__*/React.createElement("div", {
-    className: "space-y-4"
-  }, courses.map(c => /*#__PURE__*/React.createElement("div", {
+  }, "OPENAI_API_KEY"), " para a voz)."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Pago:"), " ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "REPLICATE_API_TOKEN"), " (~US$0,05/v\xEDdeo) ou ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "VIDEO_AI_URL"), "+", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "VIDEO_AI_KEY"), "."), /*#__PURE__*/React.createElement("p", null, "Sem nenhum, nada \xE9 gerado ou fabricado.")), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-1 md:grid-cols-2 gap-4 text-xs"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block font-bold text-forest-800 mb-1"
+  }, "Curso"), /*#__PURE__*/React.createElement("select", {
+    value: courseId,
+    onChange: e => {
+      setCourseId(e.target.value);
+      setLessonId('');
+    },
+    className: "w-full border border-ivory-300 rounded p-2"
+  }, courses.map(c => /*#__PURE__*/React.createElement("option", {
     key: c.id,
-    className: "border border-ivory-200 rounded-xl p-4 space-y-2"
-  }, /*#__PURE__*/React.createElement("h4", {
-    className: "font-serif font-bold text-sm text-forest-900"
-  }, c.title), c.modules.flatMap(m => m.lessons).map(l => /*#__PURE__*/React.createElement("div", {
+    value: c.id
+  }, c.title)))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block font-bold text-forest-800 mb-1"
+  }, "M\xF3dulo / Aula"), /*#__PURE__*/React.createElement("select", {
+    value: lessonId,
+    onChange: e => onSelectLesson(e.target.value),
+    className: "w-full border border-ivory-300 rounded p-2"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "\u2014 selecione \u2014"), lessons.map(l => /*#__PURE__*/React.createElement("option", {
     key: l.id,
-    className: "flex items-center justify-between text-xs py-1.5 border-t border-ivory-100"
+    value: l.id
+  }, l.moduleTitle, " \xB7 ", l.title)))), /*#__PURE__*/React.createElement("div", {
+    className: "md:col-span-2"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "block font-bold text-forest-800 mb-1"
+  }, "T\xEDtulo da aula"), /*#__PURE__*/React.createElement("input", {
+    value: title,
+    onChange: e => setTitle(e.target.value),
+    className: "w-full border border-ivory-300 rounded p-2",
+    placeholder: "T\xEDtulo exibido no v\xEDdeo"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "md:col-span-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "font-bold text-forest-800"
+  }, "Roteiro ", scriptSource && /*#__PURE__*/React.createElement("span", {
+    className: "text-[10px] text-forest-500"
+  }, "(", scriptSource === 'ai' ? 'gerado por IA' : 'derivado do conteúdo', ")")), /*#__PURE__*/React.createElement("button", {
+    type: "button",
+    onClick: genScript,
+    disabled: busy || !lessonId,
+    className: "bg-ivory-200 hover:bg-ivory-300 disabled:opacity-40 text-forest-800 font-bold px-3 py-1 rounded text-[11px]"
+  }, "\u2728 Gerar/Revisar roteiro com IA")), /*#__PURE__*/React.createElement("textarea", {
+    rows: 6,
+    value: script,
+    onChange: e => setScript(e.target.value),
+    className: "w-full border border-ivory-300 rounded p-2 font-mono",
+    placeholder: "Escreva o roteiro ou gere com a IA. Par\xE1grafos separados por linha em branco viram slides."
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block font-bold text-forest-800 mb-1"
+  }, "Motor"), /*#__PURE__*/React.createElement("select", {
+    value: engine,
+    onChange: e => setEngine(e.target.value),
+    className: "w-full border border-ivory-300 rounded p-2"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "auto"
+  }, "Autom\xE1tico (recomendado)"), /*#__PURE__*/React.createElement("option", {
+    value: "assembled"
+  }, "Produ\xE7\xE3o automatizada (slides + narra\xE7\xE3o)"), /*#__PURE__*/React.createElement("option", {
+    value: "huggingface"
+  }, "Hugging Face (gr\xE1tis)"), /*#__PURE__*/React.createElement("option", {
+    value: "replicate"
+  }, "Replicate"), /*#__PURE__*/React.createElement("option", {
+    value: "custom"
+  }, "Endpoint pr\xF3prio"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-end"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: createJob,
+    disabled: busy || !status.configured,
+    className: "w-full bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold py-2.5 rounded-xl shadow"
+  }, "Gerar videoaula")))), /*#__PURE__*/React.createElement("div", {
+    className: "bg-white border border-ivory-300 rounded-2xl p-6 shadow-sm space-y-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-serif font-bold text-base text-forest-900"
+  }, "Tarefas de gera\xE7\xE3o"), /*#__PURE__*/React.createElement("button", {
+    onClick: loadJobs,
+    className: "text-xs text-forest-600 underline"
+  }, "atualizar")), jobs.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-xs italic text-forest-600"
+  }, "Nenhuma tarefa ainda.") : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, jobs.map(j => /*#__PURE__*/React.createElement("div", {
+    key: j.id,
+    className: "border border-ivory-200 rounded-xl p-3 text-xs space-y-2"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between"
   }, /*#__PURE__*/React.createElement("span", {
-    className: "text-forest-800 pr-3 truncate"
-  }, l.title), /*#__PURE__*/React.createElement("div", {
-    className: "flex items-center gap-2 shrink-0"
-  }, /*#__PURE__*/React.createElement(VideoStateBadge, {
-    status: l.videoStatus
-  }), l.aiVideoStatus && /*#__PURE__*/React.createElement("span", {
-    className: "text-[10px] px-2 py-0.5 rounded bg-ivory-200 text-forest-700 font-mono"
-  }, "IA: ", l.aiVideoStatus), /*#__PURE__*/React.createElement("button", {
-    onClick: () => generate(l),
-    disabled: !status.configured || busyLesson === l.id,
-    className: "bg-forest-700 hover:bg-forest-800 disabled:opacity-40 text-ivory-50 font-bold px-3 py-1.5 rounded-lg text-[11px]"
-  }, busyLesson === l.id ? 'Gerando...' : 'Gerar vídeo IA'))))))));
+    className: "font-bold text-forest-900"
+  }, j.lesson_title || j.title), /*#__PURE__*/React.createElement("span", {
+    className: `px-2 py-0.5 rounded font-bold text-[10px] ${STATE_COLOR[j.status]}`
+  }, STATE_LABEL[j.status] || j.status, typeof j.progress === 'number' ? ' · ' + j.progress + '%' : '')), /*#__PURE__*/React.createElement("div", {
+    className: "text-[10px] text-forest-500 font-mono"
+  }, "motor: ", j.engine, " \xB7 ", String(j.updated_at).slice(0, 16), j.published ? ' · PUBLICADO' : ''), j.error && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-red-600"
+  }, "Erro: ", j.error), j.status === 'COMPLETED' && j.result_url && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, /*#__PURE__*/React.createElement("video", {
+    controls: true,
+    className: "w-full max-w-md rounded-lg border border-ivory-300 bg-black",
+    src: window.UMBANDA_CONFIG.apiBase.replace('/api', '') + j.result_url
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, !j.published && /*#__PURE__*/React.createElement("button", {
+    onClick: () => act(j.id, 'publish'),
+    className: "bg-gold-500 hover:bg-gold-600 text-forest-900 font-bold px-3 py-1.5 rounded-lg text-[11px]"
+  }, "Publicar na aula"), j.published && /*#__PURE__*/React.createElement("span", {
+    className: "text-forest-700 font-bold"
+  }, "\u2713 Publicado"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, (j.status === 'FAILED' || j.status === 'CANCELED') && /*#__PURE__*/React.createElement("button", {
+    onClick: () => act(j.id, 'retry'),
+    className: "bg-forest-700 text-ivory-50 px-3 py-1 rounded text-[11px] font-bold"
+  }, "Tentar novamente"), ['QUEUED', 'PROCESSING', 'SUBMITTING'].includes(j.status) && /*#__PURE__*/React.createElement("button", {
+    onClick: () => act(j.id, 'cancel'),
+    className: "bg-ivory-200 text-forest-700 px-3 py-1 rounded text-[11px] font-bold"
+  }, "Cancelar")))))));
 }
 const {
   useState,

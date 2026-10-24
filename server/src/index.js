@@ -7,6 +7,7 @@ import { existsSync } from 'node:fs';
 import { config, resolveDbPath, resolveUploadsDir, effectiveJwtSecret, smtpConfigured, aiConfigured, videoAiConfigured } from './config.js';
 import { initDb } from './db/index.js';
 import { seed } from './db/seed.js';
+import { startVideoWorker } from './video-worker.js';
 
 import authRoutes from './routes/auth.routes.js';
 import coursesRoutes from './routes/courses.routes.js';
@@ -73,6 +74,9 @@ app.use((err, req, res, next) => {
   console.error('Erro não tratado:', err);
   res.status(500).json({ error: 'Erro interno do servidor.' });
 });
+
+// Worker da fila de geração de videoaulas (processa jobs fora da requisição HTTP).
+startVideoWorker();
 
 export function start() {
   return app.listen(config.port, () => {
