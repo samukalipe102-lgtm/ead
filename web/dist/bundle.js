@@ -1297,14 +1297,18 @@ function VideoAiAdmin({
   }, "Integra\xE7\xE3o gratuita via Hugging Face. A chave fica apenas no servidor.")), /*#__PURE__*/React.createElement("span", {
     className: `text-[10px] px-2 py-1 rounded font-bold ${status.configured ? 'bg-forest-100 text-forest-800' : 'bg-red-100 text-red-700'}`
   }, status.configured ? 'Vídeo IA ativo' : 'Vídeo IA NÃO configurado')), !status.configured && /*#__PURE__*/React.createElement("div", {
-    className: "bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed"
-  }, "Para ativar (gr\xE1tis, sem cart\xE3o): crie uma conta em ", /*#__PURE__*/React.createElement("strong", null, "huggingface.co"), ", gere um token de acesso com permiss\xE3o \"Inference Providers\" e defina ", /*#__PURE__*/React.createElement("span", {
+    className: "bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed space-y-1"
+  }, /*#__PURE__*/React.createElement("p", null, "Para ativar, configure ", /*#__PURE__*/React.createElement("strong", null, "um"), " provedor no servidor (o sistema detecta automaticamente):"), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Gr\xE1tis (sem cart\xE3o):"), " conta em ", /*#__PURE__*/React.createElement("strong", null, "huggingface.co"), ", token com permiss\xE3o \"Inference Providers\" \u2192 ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "HF_TOKEN"), " nas vari\xE1veis de ambiente do servidor. Opcional: ", /*#__PURE__*/React.createElement("span", {
+  }, "HF_TOKEN"), "."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Replicate:"), " ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, "HF_VIDEO_MODEL"), " e", /*#__PURE__*/React.createElement("span", {
+  }, "REPLICATE_API_TOKEN"), " (cr\xE9ditos free/trial)."), /*#__PURE__*/React.createElement("p", null, /*#__PURE__*/React.createElement("strong", null, "Outro/pr\xF3prio:"), " ", /*#__PURE__*/React.createElement("span", {
     className: "font-mono"
-  }, " HF_VIDEO_PROVIDER"), ". Enquanto n\xE3o configurado, nenhum v\xEDdeo \xE9 gerado ou fabricado."), /*#__PURE__*/React.createElement("div", {
+  }, "VIDEO_AI_URL"), " + ", /*#__PURE__*/React.createElement("span", {
+    className: "font-mono"
+  }, "VIDEO_AI_KEY"), "."), /*#__PURE__*/React.createElement("p", null, "Enquanto nenhum estiver configurado, nenhum v\xEDdeo \xE9 gerado ou fabricado.")), status.configured && /*#__PURE__*/React.createElement("div", {
+    className: "text-[11px] text-forest-600"
+  }, "Provedor ativo: ", /*#__PURE__*/React.createElement("strong", null, status.provider), status.model ? ' · modelo: ' + status.model : ''), /*#__PURE__*/React.createElement("div", {
     className: "space-y-4"
   }, courses.map(c => /*#__PURE__*/React.createElement("div", {
     key: c.id,

@@ -106,17 +106,23 @@ API** — seus "grátis" são via interface web, não por API programática. O c
 gratuito e documentado para **API** é o roteador de Inference Providers do Hugging
 Face com modelos abertos (ex.: `Wan-AI/Wan2.2-TI2V-5B`, LTX-Video, HunyuanVideo).
 
-### Como ativar (grátis)
-1. Crie uma conta em **huggingface.co**.
-2. Em *Settings → Access Tokens*, gere um token com a permissão **"Inference Providers"**.
-3. No servidor, defina as variáveis:
-   ```
-   HF_TOKEN=hf_xxxxxxxxxxxxxxxxxxxx
-   HF_VIDEO_PROVIDER=fal-ai           # opcional (default)
-   HF_VIDEO_MODEL=Wan-AI/Wan2.2-TI2V-5B  # opcional (default)
-   ```
-4. Reinicie o backend. No painel admin, aba **"🎬 Vídeos IA"**, clique em
-   *"Gerar vídeo IA"* na aula desejada.
+### Vários provedores — configure UM; o servidor detecta sozinho
+A seleção é automática pela chave presente (ou force com `VIDEO_AI_PROVIDER`):
+
+**(A) Hugging Face — grátis, sem cartão (recomendado):**
+1. Conta em **huggingface.co** → *Settings → Access Tokens* → token com permissão
+   **"Inference Providers"**.
+2. No servidor: `HF_TOKEN=hf_...` (opcionais: `HF_VIDEO_MODEL`, `HF_VIDEO_PROVIDER`).
+
+**(B) Replicate — créditos free/trial:**
+- `REPLICATE_API_TOKEN=r8_...` (opcional: `REPLICATE_VIDEO_MODEL`, default `wan-video/wan-2.2-t2v-fast`).
+
+**(C) Endpoint próprio/outro provedor:**
+- `VIDEO_AI_URL=...` + `VIDEO_AI_KEY=...` (+ `VIDEO_AI_MODEL`). Aceita resposta em
+  bytes de vídeo ou JSON com `url`.
+
+Depois, reinicie o backend e use o painel admin → aba **"🎬 Vídeos IA"** →
+*"Gerar vídeo IA"* na aula. O painel mostra qual provedor está ativo.
 
 ### Comportamento honesto
 - A chave fica **apenas no servidor** (nunca no frontend/executável).

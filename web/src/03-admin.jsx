@@ -265,12 +265,17 @@ function VideoAiAdmin({ showToast }) {
       </div>
 
       {!status.configured && (
-        <div className="bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed">
-          Para ativar (grátis, sem cartão): crie uma conta em <strong>huggingface.co</strong>, gere um token de acesso
-          com permissão "Inference Providers" e defina <span className="font-mono">HF_TOKEN</span> nas variáveis de
-          ambiente do servidor. Opcional: <span className="font-mono">HF_VIDEO_MODEL</span> e
-          <span className="font-mono"> HF_VIDEO_PROVIDER</span>. Enquanto não configurado, nenhum vídeo é gerado ou fabricado.
+        <div className="bg-gold-100/60 border border-gold-300 text-forest-800 text-xs p-3 rounded-lg leading-relaxed space-y-1">
+          <p>Para ativar, configure <strong>um</strong> provedor no servidor (o sistema detecta automaticamente):</p>
+          <p><strong>Grátis (sem cartão):</strong> conta em <strong>huggingface.co</strong>, token com permissão
+          "Inference Providers" → <span className="font-mono">HF_TOKEN</span>.</p>
+          <p><strong>Replicate:</strong> <span className="font-mono">REPLICATE_API_TOKEN</span> (créditos free/trial).</p>
+          <p><strong>Outro/próprio:</strong> <span className="font-mono">VIDEO_AI_URL</span> + <span className="font-mono">VIDEO_AI_KEY</span>.</p>
+          <p>Enquanto nenhum estiver configurado, nenhum vídeo é gerado ou fabricado.</p>
         </div>
+      )}
+      {status.configured && (
+        <div className="text-[11px] text-forest-600">Provedor ativo: <strong>{status.provider}</strong>{status.model ? ' · modelo: ' + status.model : ''}</div>
       )}
 
       <div className="space-y-4">

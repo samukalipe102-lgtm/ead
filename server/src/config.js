@@ -33,15 +33,28 @@ export const config = {
     openaiKey: process.env.OPENAI_API_KEY || '',
   },
 
-  // Geração de vídeo por IA (GRATUITA via Hugging Face Inference Providers).
-  // A conta e o token do Hugging Face são gratuitos (sem cartão), com uma cota
-  // mensal de créditos de inferência. O token fica SOMENTE no servidor.
+  // Geração de vídeo por IA — MÚLTIPLOS provedores. O servidor detecta
+  // automaticamente qual usar pela chave presente (precedência: VIDEO_AI_PROVIDER
+  // explícito > Hugging Face > Replicate > endpoint genérico). As chaves ficam
+  // SOMENTE no servidor (nunca no frontend/executável).
   video: {
+    // Força um provedor específico: 'huggingface' | 'replicate' | 'custom'.
+    provider: process.env.VIDEO_AI_PROVIDER || '',
+
+    // Hugging Face Inference Providers (GRATUITO, sem cartão).
     hfToken: process.env.HF_TOKEN || '',
-    // Provider de inferência do HF (ex.: 'fal-ai', 'replicate', 'novita').
     hfProvider: process.env.HF_VIDEO_PROVIDER || 'fal-ai',
-    // Modelo text-to-video de código aberto (ver docs do HF).
-    model: process.env.HF_VIDEO_MODEL || 'Wan-AI/Wan2.2-TI2V-5B',
+    hfModel: process.env.HF_VIDEO_MODEL || 'Wan-AI/Wan2.2-TI2V-5B',
+
+    // Replicate (tem créditos free/trial; muitos modelos text-to-video).
+    replicateToken: process.env.REPLICATE_API_TOKEN || '',
+    // Versão do modelo no Replicate (owner/name ou hash de versão).
+    replicateModel: process.env.REPLICATE_VIDEO_MODEL || 'wan-video/wan-2.2-t2v-fast',
+
+    // Endpoint genérico (qualquer API compatível OpenAI-like de vídeo, self-host, etc.).
+    customUrl: process.env.VIDEO_AI_URL || '',
+    customKey: process.env.VIDEO_AI_KEY || '',
+    customModel: process.env.VIDEO_AI_MODEL || '',
   },
 
   corsOrigin: process.env.CORS_ORIGIN || '*',
@@ -79,6 +92,22 @@ export function aiConfigured() {
   return false;
 }
 
+// Resolve qual provedor de vídeo está ativo, pela chave presente ou escolha explícita.
+// Retorna 'huggingface' | 'replicate' | 'custom' | null.
+export function resolveVideoProvider() {
+  const v = config.video;
+  if (v.provider) {
+    if (v.provider === 'huggingface' && v.hfToken) return 'huggingface';
+    if (v.provider === 'replicate' && v.replicateToken) return 'replicate';
+    if (v.provider === 'custom' && v.customUrl) return 'custom';
+    return null; // forçado mas sem credencial
+  }
+  if (v.hfToken) return 'huggingface';
+  if (v.replicateToken) return 'replicate';
+  if (v.customUrl) return 'custom';
+  return null;
+}
+
 export function videoAiConfigured() {
-  return Boolean(config.video.hfToken);
+  return resolveVideoProvider() !== null;
 }
